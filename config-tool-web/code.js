@@ -272,7 +272,6 @@ async function open_device() {
                 await get_usages_from_device();
                 setup_usages_modals();
                 bluetooth_buttons_set_visibility(device.productName.includes("Bluetooth"));
-                update_device_info();
             }
         }
     } catch (e) {

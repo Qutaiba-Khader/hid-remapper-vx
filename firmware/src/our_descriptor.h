@@ -14,7 +14,7 @@
 #define REPORT_ID_SYSCONTROL 4
 #define MAX_INPUT_REPORT_ID 4
 
-#define NOUR_DESCRIPTORS 6
+#define NOUR_DESCRIPTORS 9
 
 typedef void (*device_connected_t)(uint16_t interface, uint16_t vid, uint16_t pid);
 typedef void (*device_disconnected_t)(uint8_t dev_addr);

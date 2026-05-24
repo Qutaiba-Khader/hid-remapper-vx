@@ -709,6 +709,37 @@ uint8_t const our_report_descriptor_xac_compat[] = {
     0xC0,              // End Collection
 };
 
+const uint8_t our_report_descriptor_kb_only[] = {
+    0x05, 0x01,                // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x06,                // Usage (Keyboard)
+    0xA1, 0x01,                // Collection (Application)
+    0x85, REPORT_ID_KEYBOARD,  //   Report ID (REPORT_ID_KEYBOARD)
+    0x05, 0x07,                //   Usage Page (Kbrd/Keypad)
+    0x19, 0xE0,                //   Usage Minimum (0xE0)
+    0x29, 0xE7,                //   Usage Maximum (0xE7)
+    0x15, 0x00,                //   Logical Minimum (0)
+    0x25, 0x01,                //   Logical Maximum (1)
+    0x75, 0x01,                //   Report Size (1)
+    0x95, 0x08,                //   Report Count (8)
+    0x81, 0x02,                //   Input (Data,Var,Abs)
+    0x19, 0x04,                //   Usage Minimum (0x04)
+    0x29, 0xA4,                //   Usage Maximum (0xA4)
+    0x95, 0xA1,                //   Report Count (161)
+    0x81, 0x02,                //   Input (Data,Var,Abs)
+    0x95, 0x07,                //   Report Count (7)
+    0x81, 0x03,                //   Input (Const) - padding to byte boundary
+    0x85, REPORT_ID_LEDS,      //   Report ID (REPORT_ID_LEDS)
+    0x05, 0x08,                //   Usage Page (LEDs)
+    0x95, 0x05,                //   Report Count (5)
+    0x19, 0x01,                //   Usage Minimum (Num Lock)
+    0x29, 0x05,                //   Usage Maximum (Kana)
+    0x91, 0x02,                //   Output (Data,Var,Abs)
+    0x95, 0x01,                //   Report Count (1)
+    0x75, 0x03,                //   Report Size (3)
+    0x91, 0x03,                //   Output (Const) - padding
+    0xC0,                      // End Collection
+};
+
 void kb_mouse_handle_set_report(uint8_t report_id, const uint8_t* buffer, uint16_t reqlen) {
     if (report_id == REPORT_ID_MULTIPLIER && reqlen >= 1) {
         memcpy(&resolution_multiplier, buffer, 1);
@@ -747,6 +778,67 @@ bool kb_mouse_should_cause_wakeup(uint8_t report_id, const uint8_t* buffer, uint
     }
 
     return false;
+}
+
+const uint8_t our_report_descriptor_xbox[] = {
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x05,        // Usage (Game Pad)
+    0xA1, 0x01,        // Collection (Application)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x35, 0x00,        //   Physical Minimum (0)
+    0x45, 0x01,        //   Physical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x14,        //   Report Count (20)
+    0x05, 0x09,        //   Usage Page (Button)
+    0x19, 0x01,        //   Usage Minimum (0x01)
+    0x29, 0x14,        //   Usage Maximum (0x14)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
+    0x95, 0x04,        //   Report Count (4)
+    0x81, 0x01,        //   Input (Const) - padding to 3 bytes
+    0x05, 0x01,        //   Usage Page (Generic Desktop Ctrls)
+    0x25, 0x07,        //   Logical Maximum (7)
+    0x46, 0x3B, 0x01,  //   Physical Maximum (315)
+    0x75, 0x04,        //   Report Size (4)
+    0x95, 0x01,        //   Report Count (1)
+    0x65, 0x14,        //   Unit (System: English Rotation, Length: Centimeter)
+    0x09, 0x39,        //   Usage (Hat switch)
+    0x81, 0x42,        //   Input (Data,Var,Abs,Null State)
+    0x65, 0x00,        //   Unit (None)
+    0x95, 0x01,        //   Report Count (1)
+    0x81, 0x01,        //   Input (Const) - padding to 4 bytes
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
+    0x46, 0xFF, 0x00,  //   Physical Maximum (255)
+    0x09, 0x30,        //   Usage (X)  - Left Stick X
+    0x09, 0x31,        //   Usage (Y)  - Left Stick Y
+    0x09, 0x32,        //   Usage (Z)  - Right Stick X
+    0x09, 0x35,        //   Usage (Rz) - Right Stick Y
+    0x09, 0x33,        //   Usage (Rx) - Left Trigger
+    0x09, 0x34,        //   Usage (Ry) - Right Trigger
+    0x75, 0x08,        //   Report Size (8)
+    0x95, 0x06,        //   Report Count (6)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
+    0xC0,              // End Collection
+};
+
+static const uint8_t xbox_neutral[] = { 0x00, 0x00, 0x00, 0x0F, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00 };
+
+void xbox_clear_report(uint8_t* report, uint8_t report_id, uint16_t len) {
+    memcpy(report, xbox_neutral, sizeof(xbox_neutral));
+}
+
+int32_t xbox_default_value(uint32_t usage) {
+    switch (usage) {
+        case 0x00010039:
+            return 15;
+        case 0x00010030:
+        case 0x00010031:
+        case 0x00010032:
+        case 0x00010035:
+            return 0x80;
+        default:
+            return 0;
+    }
 }
 
 static const uint8_t horipad_neutral[] = { 0x00, 0x00, 0x0F, 0x80, 0x80, 0x80, 0x80, 0x00 };
@@ -883,6 +975,40 @@ const our_descriptor_def_t our_descriptors[] = {
         .handle_received_report = do_handle_received_report,
         .clear_report = xac_compat_clear_report,
         .default_value = ps4_stadia_default_value,  // sic
+    },
+    {
+        .idx = 6,
+        .descriptor = our_report_descriptor_kb_only,
+        .descriptor_length = sizeof(our_report_descriptor_kb_only),
+        .vid = 0x1B1C,
+        .pid = 0x1B3D,
+        .handle_received_report = do_handle_received_report,
+        .handle_get_report = kb_mouse_handle_get_report,
+        .handle_set_report = kb_mouse_handle_set_report,
+        .set_report_synchronous = kb_mouse_set_report_synchronous,
+        .should_cause_wakeup = kb_mouse_should_cause_wakeup,
+    },
+    {
+        .idx = 7,
+        .descriptor = our_report_descriptor_kb_only,
+        .descriptor_length = sizeof(our_report_descriptor_kb_only),
+        .vid = 0x046D,
+        .pid = 0xC336,
+        .handle_received_report = do_handle_received_report,
+        .handle_get_report = kb_mouse_handle_get_report,
+        .handle_set_report = kb_mouse_handle_set_report,
+        .set_report_synchronous = kb_mouse_set_report_synchronous,
+        .should_cause_wakeup = kb_mouse_should_cause_wakeup,
+    },
+    {
+        .idx = 8,
+        .descriptor = our_report_descriptor_xbox,
+        .descriptor_length = sizeof(our_report_descriptor_xbox),
+        .vid = 0x045E,
+        .pid = 0x0B12,
+        .handle_received_report = do_handle_received_report,
+        .clear_report = xbox_clear_report,
+        .default_value = xbox_default_value,
     },
 };
 

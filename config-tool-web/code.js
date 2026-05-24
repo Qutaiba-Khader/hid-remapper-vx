@@ -272,6 +272,7 @@ async function open_device() {
                 await get_usages_from_device();
                 setup_usages_modals();
                 bluetooth_buttons_set_visibility(device.productName.includes("Bluetooth"));
+                update_device_info();
             }
         }
     } catch (e) {
@@ -282,6 +283,7 @@ async function open_device() {
 
     if (!success) {
         device = null;
+        update_device_info();
     }
 
     busy = false;
@@ -638,6 +640,7 @@ function set_config_ui_state() {
             config['unmapped_passthrough_layers'].includes(i);
     }
     document.getElementById('interval_override_dropdown').value = config['interval_override'];
+    document.querySelectorAll('#our_descriptor_number_dropdown option').forEach(opt => { opt.hidden = false; });
     document.getElementById('our_descriptor_number_dropdown').value = config['our_descriptor_number'];
     document.getElementById('ignore_auth_dev_inputs_checkbox').checked = config['ignore_auth_dev_inputs'];
     document.getElementById('macro_entry_duration_input').value = config['macro_entry_duration'];
@@ -787,6 +790,7 @@ function set_ui_state() {
     set_expressions_ui_state();
     set_quirks_ui_state();
     setup_usages_modals();
+    update_device_info();
 }
 
 function set_port_badge(button_element, port) {
@@ -1768,6 +1772,22 @@ function interval_override_onchange() {
 function our_descriptor_number_onchange() {
     config['our_descriptor_number'] = parseInt(document.getElementById("our_descriptor_number_dropdown").value, 10);
     set_ui_state();
+    update_device_info();
+}
+
+function update_device_info() {
+    const info = document.getElementById('device_info');
+    if (!device) {
+        info.classList.add('d-none');
+        return;
+    }
+    info.classList.remove('d-none');
+    document.getElementById('device_name').textContent = device.productName || 'Unknown Device';
+    document.getElementById('device_vid_pid').textContent = 'VID:0x' + device.vendorId.toString(16).toUpperCase().padStart(4, '0') + ' PID:0x' + device.productId.toString(16).toUpperCase().padStart(4, '0');
+    document.getElementById('device_fw_version').textContent = 'FW v' + config['version'];
+    const dropdown = document.getElementById('our_descriptor_number_dropdown');
+    const selected = dropdown.options[dropdown.selectedIndex];
+    document.getElementById('device_descriptor_info').textContent = selected ? 'Profile: ' + selected.text : '';
 }
 
 function gpio_output_mode_onchange() {

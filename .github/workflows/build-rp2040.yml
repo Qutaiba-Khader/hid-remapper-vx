@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'firmware/**'
+      - '.github/workflows/build-rp2040.yml'
+  workflow_dispatch:
   workflow_call:
 defaults:
   run:

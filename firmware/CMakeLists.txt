@@ -62,7 +62,6 @@ target_include_directories(remapper PRIVATE
 
 target_link_libraries(remapper
     pico_stdlib
-    pico_multicore
     pico_unique_id
     hardware_pio
     hardware_dma

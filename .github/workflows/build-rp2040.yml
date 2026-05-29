@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Install compiler, libraries and tools
@@ -75,6 +75,16 @@ jobs:
           PICO_BOARD=waveshare_rp2350_pizero cmake ..
           make remapper
           cd ..
+          mkdir build-meisterconverter
+          cd build-meisterconverter
+          PICO_BOARD=meisterconverter cmake ..
+          make remapper
+          cd ..
+          mkdir build-rp2040abb
+          cd build-rp2040abb
+          PICO_BOARD=rp2040abb cmake ..
+          make remapper
+          cd ..
           mkdir artifacts
           mv build/*.uf2 artifacts
           rm artifacts/flash_b_side.uf2
@@ -91,7 +101,9 @@ jobs:
           mv build-flatbox_rev4/remapper.uf2 artifacts/remapper_flatbox_rev4.uf2
           mv build-flatbox_rev8/remapper.uf2 artifacts/remapper_flatbox_rev8.uf2
           mv build-waveshare_rp2350_pizero/remapper.uf2 artifacts/remapper_waveshare_rp2350_pizero.uf2
+          mv build-meisterconverter/remapper.uf2 artifacts/remapper_meisterconverter.uf2
+          mv build-rp2040abb/remapper.uf2 artifacts/remapper_rp2040abb.uf2
         working-directory: ./firmware
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: firmware/artifacts/*

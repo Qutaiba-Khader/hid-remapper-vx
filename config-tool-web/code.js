@@ -577,7 +577,7 @@ async function save_to_device() {
                 display_error('Configuration too big to persist.');
                 break;
             default:
-                throw new Error('Unknown PERSIST_CONFIG return code (' + return_code + ').');
+                throw new Error('Unknown PERSIST_CONFIG return code (' + persist_config_return_code + ').');
         }
     } catch (e) {
         display_error(e);

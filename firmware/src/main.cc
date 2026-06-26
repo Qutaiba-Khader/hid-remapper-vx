@@ -247,7 +247,7 @@ uint64_t get_unique_id() {
 static PIO rgb_led_pio;
 static uint rgb_led_sm;
 static bool rgb_led_ready = false;
-static uint32_t rgb_led_last_grb = 0xFFFFFFFF;  // sentinel: force the first write
+static uint32_t rgb_led_last_wire = 0xFFFFFFFF;  // sentinel: force the first write
 
 // Global brightness cap (0-255). Kept well below full to limit current/heat
 // (longer LED life) and to be easy on the eyes. Applied to every color.
@@ -255,15 +255,17 @@ static uint32_t rgb_led_last_grb = 0xFFFFFFFF;  // sentinel: force the first wri
 #define RGB_LED_BRIGHTNESS 64
 #endif
 
-// Expand an RGB565 color to a WS2812 GRB byte word, scaled to the brightness cap.
-static inline uint32_t rgb565_to_grb(uint16_t c) {
+// Expand an RGB565 color to the WS2812 wire word, scaled to the brightness cap.
+// NOTE: this board's onboard WS2812 uses RGB byte order (not the usual GRB) --
+// confirmed by calibration (intended red showed green under GRB).
+static inline uint32_t rgb565_to_wire(uint16_t c) {
     uint8_t r5 = (c >> 11) & 0x1F;
     uint8_t g6 = (c >> 5) & 0x3F;
     uint8_t b5 = c & 0x1F;
     uint32_t r8 = (((r5 << 3) | (r5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
     uint32_t g8 = (((g6 << 2) | (g6 >> 4)) * RGB_LED_BRIGHTNESS) / 255;
     uint32_t b8 = (((b5 << 3) | (b5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
-    return (g8 << 16) | (r8 << 8) | b8;
+    return (r8 << 16) | (g8 << 8) | b8;  // RGB order for this board
 }
 
 // Claim a free PIO state machine AFTER the USB host has claimed its own, so the
@@ -277,7 +279,7 @@ static void rgb_led_init() {
     ws2812_program_init(rgb_led_pio, rgb_led_sm, offset, RGB_LED_PIN, 800000, false);
     rgb_led_ready = true;
     pio_sm_put_blocking(rgb_led_pio, rgb_led_sm, 0);  // start off
-    rgb_led_last_grb = 0;
+    rgb_led_last_wire = 0;
 }
 
 // Drive the LED to the most-recently-activated mapping's color (off when none
@@ -286,16 +288,16 @@ static void write_rgb_led() {
     if (!rgb_led_ready) {
         return;
     }
-    uint32_t grb = 0;
+    uint32_t wire = 0;
     if (!suspended) {
         uint16_t rgb565;
         if (rgb_led_current_color(&rgb565)) {
-            grb = rgb565_to_grb(rgb565);
+            wire = rgb565_to_wire(rgb565);
         }
     }
-    if (grb != rgb_led_last_grb) {
-        pio_sm_put_blocking(rgb_led_pio, rgb_led_sm, grb << 8u);
-        rgb_led_last_grb = grb;
+    if (wire != rgb_led_last_wire) {
+        pio_sm_put_blocking(rgb_led_pio, rgb_led_sm, wire << 8u);
+        rgb_led_last_wire = wire;
     }
 }
 #endif

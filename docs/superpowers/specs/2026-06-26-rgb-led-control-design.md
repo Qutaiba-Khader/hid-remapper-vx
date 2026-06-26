@@ -25,7 +25,7 @@ target_usage       = RGB_LED_USAGE_PAGE | rgb565
 
 - Encode (web): `rgb565 = ((r>>3)<<11) | ((g>>2)<<5) | (b>>3)`
 - Decode (firmware): `r8=(r5<<3)|(r5>>2)`, `g8=(g6<<2)|(g6>>4)`, `b8=(b5<<3)|(b5>>2)` (bit-replication).
-- WS2812 wants **GRB** byte order. **Color order must be confirmed by calibration** on first flash (the feasibility test showed magenta as blue — verify pure R/G/B before locking).
+- **Color order: this board's onboard WS2812 is RGB byte order (NOT the usual GRB)** — confirmed by calibration (under GRB, intended red showed green). `rgb565_to_wire()` packs `(r8<<16)|(g8<<8)|b8`. The 16 presets are calibrated against this.
 
 ## Firmware (only compiled when `RGB_LED_ENABLED`)
 

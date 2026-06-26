@@ -35,6 +35,7 @@ target_usage       = RGB_LED_USAGE_PAGE | rgb565
    - `set_mapping_from_config`: detect targets with `(target & 0xFFFF0000) == RGB_LED_USAGE_PAGE`; let them flow into `reverse_mapping` but attach **no** `out_usage_def` and do **not** touch `gpio_out_mask_`/`gpio_in_mask_` (the pin is PIO-owned). Reset LED runtime state (active list, last-sent) at the top where `reverse_mapping.clear()` happens.
    - `process_mapping` (absolute branch): after `value` is finalized and **before** the active gate, for LED targets do edge tracking and `continue`:
      - `active = (value != rev_map.default_value)` (== `value != 0`).
+     - **Constant / layer color:** if not already active, a source of "nothing" (`usage == 0`) counts as active whenever one of the mapping's selected layers is active (`layer_state_mask & src.layer_mask`). So `nothing → color` on all layers = always-on base color; `nothing → color` on one layer = a layer indicator; both still overridden by key-triggered mappings via last-activated-wins. No web-tool change (source "nothing" + the existing per-mapping layer checkboxes).
      - rising edge (`active && !led_prev_active`): erase target from `active_led_targets` if present, then `push_back(target)`.
      - falling edge (`!active && led_prev_active`): erase target.
      - `led_prev_active = active`.

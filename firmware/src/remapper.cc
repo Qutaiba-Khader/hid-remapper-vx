@@ -1337,6 +1337,18 @@ void process_mapping(bool auto_repeat) {
 #ifdef RGB_LED_ENABLED
             if ((target & 0xFFFF0000) == RGB_LED_USAGE_PAGE) {
                 bool led_active = (value != rev_map.default_value);
+                // A "nothing"-sourced LED mapping is a constant/base color: it is on
+                // whenever one of its selected layers is active. So a key trigger is
+                // optional (always-on base color), and restricting it to a single
+                // layer turns it into a layer indicator -- no key needed.
+                if (!led_active) {
+                    for (auto const& src : rev_map.sources) {
+                        if ((src.usage == 0) && (layer_state_mask & src.layer_mask)) {
+                            led_active = true;
+                            break;
+                        }
+                    }
+                }
                 rgb_led_update_active(target, led_active, rev_map.led_prev_active);
                 rev_map.led_prev_active = led_active;
                 continue;

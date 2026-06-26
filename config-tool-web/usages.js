@@ -925,7 +925,22 @@ const common_target_usages = {
     "0xfff60003": { 'name': 'Analog 3', 'class': 'analogs_usage' },
     "0xfff60004": { 'name': 'Analog 4', 'class': 'analogs_usage' },
     "0xfff60005": { 'name': 'Analog 5', 'class': 'analogs_usage' },
-    "0xfffa0000": { 'name': 'RGB LED', 'class': 'rgb_led_usage' },
+    "0xfffa0000": { 'name': 'LED Off', 'class': 'rgb_led_usage' },
+    "0xfffaf800": { 'name': 'LED Red', 'class': 'rgb_led_usage' },
+    "0xfffafc00": { 'name': 'LED Orange', 'class': 'rgb_led_usage' },
+    "0xfffafe00": { 'name': 'LED Amber', 'class': 'rgb_led_usage' },
+    "0xfffaffe0": { 'name': 'LED Yellow', 'class': 'rgb_led_usage' },
+    "0xfffaa7e0": { 'name': 'LED Lime', 'class': 'rgb_led_usage' },
+    "0xfffa07e0": { 'name': 'LED Green', 'class': 'rgb_led_usage' },
+    "0xfffa07f0": { 'name': 'LED Mint', 'class': 'rgb_led_usage' },
+    "0xfffa07ff": { 'name': 'LED Cyan', 'class': 'rgb_led_usage' },
+    "0xfffa041f": { 'name': 'LED Sky', 'class': 'rgb_led_usage' },
+    "0xfffa001f": { 'name': 'LED Blue', 'class': 'rgb_led_usage' },
+    "0xfffa401f": { 'name': 'LED Indigo', 'class': 'rgb_led_usage' },
+    "0xfffa801f": { 'name': 'LED Purple', 'class': 'rgb_led_usage' },
+    "0xfffaf81f": { 'name': 'LED Magenta', 'class': 'rgb_led_usage' },
+    "0xfffaf810": { 'name': 'LED Pink', 'class': 'rgb_led_usage' },
+    "0xfffaffff": { 'name': 'LED White', 'class': 'rgb_led_usage' },
 }
 
 usages[8] = {

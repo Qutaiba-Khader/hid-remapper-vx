@@ -1214,7 +1214,7 @@ function show_usage_modal(mapping_, source_or_target, element_) {
 
                 if (source_or_target == "target") {
                     set_forced_layers(mapping, element.closest(".mapping_container"));
-                    set_led_color_visibility(mapping, element.closest(".mapping_container"));
+                    set_led_color_visibility(mapping, element.closest(".mapping_container"), true);
                 }
 
                 if (source_or_target == "source") {
@@ -1302,7 +1302,7 @@ function apply_custom_hex(modal_element) {
 
     if (mode == "target") {
         set_forced_layers(mapping, element.closest(".mapping_container"));
-        set_led_color_visibility(mapping, element.closest(".mapping_container"));
+        set_led_color_visibility(mapping, element.closest(".mapping_container"), true);
     }
     if (mode == "source") {
         set_forced_flags(mapping, element.closest(".mapping_container"));
@@ -2086,13 +2086,24 @@ function readable_target_usage_name(usage) {
 
 // Show the per-row LED color picker only when this row's target is an RGB LED,
 // and sync its swatch to the color currently encoded in the target usage.
-function set_led_color_visibility(mapping, mapping_container) {
+// When default_if_off is true (a fresh selection from the picker), a bare
+// "RGB LED" target (color 0 / black / off) is defaulted to white so the LED is
+// visible immediately; on load (default_if_off false) a saved color is kept as-is.
+function set_led_color_visibility(mapping, mapping_container, default_if_off = false) {
     const led_color_input = mapping_container.querySelector(".led_color_input");
     if (!led_color_input) {
         return;
     }
-    const usage_int = parseInt(mapping['target_usage'], 16) >>> 0;
+    let usage_int = parseInt(mapping['target_usage'], 16) >>> 0;
     if (((usage_int & 0xFFFF0000) >>> 0) == RGB_LED_USAGE_PAGE) {
+        if (default_if_off && (usage_int & 0xFFFF) === 0) {
+            usage_int = (RGB_LED_USAGE_PAGE | 0xFFFF) >>> 0;  // default to white
+            mapping['target_usage'] = '0x' + usage_int.toString(16).padStart(8, '0');
+            const target_button = mapping_container.querySelector('.target_button');
+            target_button.querySelector('.button_label').innerText = readable_target_usage_name(mapping['target_usage']);
+            target_button.setAttribute('data-hid-usage', mapping['target_usage']);
+            target_button.title = mapping['target_usage'];
+        }
         led_color_input.value = rgb565_to_hexcolor(usage_int & 0xFFFF);
         led_color_input.classList.remove('d-none');
     } else {

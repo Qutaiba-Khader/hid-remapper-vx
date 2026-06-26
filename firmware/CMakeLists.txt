@@ -86,7 +86,9 @@ pico_add_extra_outputs(remapper)
 
 # --- RGB LED output (opt-in). Enabled only with -DRGB_LED_ENABLED=ON, which
 # produces the separate remapper_pico2_led.uf2. Default (OFF) builds are
-# byte-identical to upstream. ---
+# byte-identical to upstream. Note: GP16 is also the default UART TX pin on
+# pico/pico2, so the _led build claims GP16 for the WS2812 and loses UART
+# serial-console debug output (USB-CDC stdio is unaffected). ---
 option(RGB_LED_ENABLED "Drive onboard WS2812 RGB LED output on GP16" OFF)
 if(RGB_LED_ENABLED)
     pico_generate_pio_header(remapper ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)

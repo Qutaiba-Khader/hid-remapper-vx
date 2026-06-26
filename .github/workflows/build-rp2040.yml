@@ -12,7 +12,7 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,7 +61,7 @@ jobs:
           mkdir build-pico2-led
           cd build-pico2-led
           PICO_BOARD=pico2 cmake .. -DRGB_LED_ENABLED=ON
-          make remapper
+          make -j$(nproc) remapper
           cd ..
           mkdir build-waveshare_rp2350_usb_a
           cd build-waveshare_rp2350_usb_a

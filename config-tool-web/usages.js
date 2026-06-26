@@ -925,6 +925,7 @@ const common_target_usages = {
     "0xfff60003": { 'name': 'Analog 3', 'class': 'analogs_usage' },
     "0xfff60004": { 'name': 'Analog 4', 'class': 'analogs_usage' },
     "0xfff60005": { 'name': 'Analog 5', 'class': 'analogs_usage' },
+    "0xfffa0000": { 'name': 'RGB LED', 'class': 'rgb_led_usage' },
 }
 
 usages[8] = {

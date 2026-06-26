@@ -29,6 +29,12 @@
 #include "remapper.h"
 #include "tick.h"
 
+#ifdef RGB_LED_ENABLED
+#include <hardware/pio.h>
+
+#include "ws2812.pio.h"
+#endif
+
 // RP2350 UF2s wipe the last sector of flash every time
 // because of RP2350-E10 errata mitigation. So we put
 // the config one sector down.
@@ -237,6 +243,57 @@ uint64_t get_unique_id() {
     return ret;
 }
 
+#ifdef RGB_LED_ENABLED
+static PIO rgb_led_pio;
+static uint rgb_led_sm;
+static bool rgb_led_ready = false;
+static uint32_t rgb_led_last_grb = 0xFFFFFFFF;  // sentinel: force the first write
+
+// Expand an RGB565 color to a WS2812 GRB byte word.
+static inline uint32_t rgb565_to_grb(uint16_t c) {
+    uint8_t r5 = (c >> 11) & 0x1F;
+    uint8_t g6 = (c >> 5) & 0x3F;
+    uint8_t b5 = c & 0x1F;
+    uint8_t r8 = (r5 << 3) | (r5 >> 2);
+    uint8_t g8 = (g6 << 2) | (g6 >> 4);
+    uint8_t b8 = (b5 << 3) | (b5 >> 2);
+    return ((uint32_t) g8 << 16) | ((uint32_t) r8 << 8) | b8;
+}
+
+// Claim a free PIO state machine AFTER the USB host has claimed its own, so the
+// WS2812 driver never contends with the GP0/GP1 PIO-USB host port.
+static void rgb_led_init() {
+    uint offset;
+    if (!pio_claim_free_sm_and_add_program_for_gpio_range(
+            &ws2812_program, &rgb_led_pio, &rgb_led_sm, &offset, RGB_LED_PIN, 1, true)) {
+        return;  // no free state machine: leave the LED disabled, disturb nothing
+    }
+    ws2812_program_init(rgb_led_pio, rgb_led_sm, offset, RGB_LED_PIN, 800000, false);
+    rgb_led_ready = true;
+    pio_sm_put_blocking(rgb_led_pio, rgb_led_sm, 0);  // start off
+    rgb_led_last_grb = 0;
+}
+
+// Drive the LED to the most-recently-activated mapping's color (off when none
+// active, or when suspended). Only pushes to the PIO when the color changed.
+static void write_rgb_led() {
+    if (!rgb_led_ready) {
+        return;
+    }
+    uint32_t grb = 0;
+    if (!suspended) {
+        uint16_t rgb565;
+        if (rgb_led_current_color(&rgb565)) {
+            grb = rgb565_to_grb(rgb565);
+        }
+    }
+    if (grb != rgb_led_last_grb) {
+        pio_sm_put_blocking(rgb_led_pio, rgb_led_sm, grb << 8u);
+        rgb_led_last_grb = grb;
+    }
+}
+#endif
+
 int main() {
     my_mutexes_init();
     gpio_pins_init();
@@ -260,6 +317,10 @@ int main() {
 
     next_print = time_us_64() + 1000000;
 
+#ifdef RGB_LED_ENABLED
+    rgb_led_init();
+#endif
+
     while (true) {
         bool tick;
         bool new_report;
@@ -281,6 +342,9 @@ int main() {
 #endif
             process_mapping(true);
             write_gpio();
+#ifdef RGB_LED_ENABLED
+            write_rgb_led();
+#endif
 #ifdef MCP4651_ENABLED
             mcp4651_write();
 #endif

@@ -35,6 +35,9 @@ uint32_t get_gpio_valid_pins_mask() {
 #ifdef PICO_DEFAULT_UART_RX_PIN
                                       (1 << PICO_DEFAULT_UART_RX_PIN) |
 #endif
+#ifdef RGB_LED_ENABLED
+                                      (1 << RGB_LED_PIN) |  // PIO-owned WS2812 data pin
+#endif
                                       (1 << PICO_DEFAULT_PIO_USB_DP_PIN) |
                                       (1 << (PICO_DEFAULT_PIO_USB_DP_PIN + 1)));
 }

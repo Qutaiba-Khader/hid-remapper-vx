@@ -34,6 +34,7 @@ const QUIRK_SIZE_MASK = 0b00111111;
 const LAYERS_USAGE_PAGE = 0xFFF10000;
 const EXPR_USAGE_PAGE = 0xFFF30000;
 const MIDI_USAGE_PAGE = 0xFFF70000;
+const RGB_LED_USAGE_PAGE = 0xFFFA0000;  // low 16 bits = RGB565 color
 const BUTTON_USAGE_PAGE = 0x00090000;
 
 const RESET_INTO_BOOTSEL = 1;
@@ -869,10 +870,19 @@ function add_mapping(mapping) {
     target_button.title = mapping['target_usage'];
     target_button.addEventListener("click", show_usage_modal(mapping, 'target', clone));
     set_port_badge(target_button, mapping['target_port']);
+    const led_color_input = clone.querySelector(".led_color_input");
+    led_color_input.addEventListener("input", function () {
+        const rgb565 = hexcolor_to_rgb565(led_color_input.value);
+        mapping['target_usage'] = '0x' + ((RGB_LED_USAGE_PAGE | rgb565) >>> 0).toString(16).padStart(8, '0');
+        target_button.querySelector('.button_label').innerText = readable_target_usage_name(mapping['target_usage']);
+        target_button.setAttribute('data-hid-usage', mapping['target_usage']);
+        target_button.title = mapping['target_usage'];
+    });
     setup_reorder(clone);
     container.appendChild(clone);
     set_forced_layers(mapping, clone);
     set_forced_flags(mapping, clone);
+    set_led_color_visibility(mapping, clone);
     if (modal_return_mapping === mapping) {
         modal_return_element = clone;
     }
@@ -1204,6 +1214,7 @@ function show_usage_modal(mapping_, source_or_target, element_) {
 
                 if (source_or_target == "target") {
                     set_forced_layers(mapping, element.closest(".mapping_container"));
+                    set_led_color_visibility(mapping, element.closest(".mapping_container"));
                 }
 
                 if (source_or_target == "source") {
@@ -1291,6 +1302,7 @@ function apply_custom_hex(modal_element) {
 
     if (mode == "target") {
         set_forced_layers(mapping, element.closest(".mapping_container"));
+        set_led_color_visibility(mapping, element.closest(".mapping_container"));
     }
     if (mode == "source") {
         set_forced_flags(mapping, element.closest(".mapping_container"));
@@ -1508,6 +1520,7 @@ function setup_usage_modal(source_or_target) {
         'registers_usage': modal_element.querySelector('.registers_usage'),
         'gpios_usage': modal_element.querySelector('.gpios_usage'),
         'analogs_usage': modal_element.querySelector('.analogs_usage'),
+        'rgb_led_usage': modal_element.querySelector('.rgb_led_usage'),
         'other': modal_element.querySelector('.other_usages'),
         'extra': modal_element.querySelector('.extra_usages'),
     };
@@ -2046,8 +2059,45 @@ function readable_usage_name(usage, default_to_hex = true) {
     return default_to_hex ? usage : '';
 }
 
+function hexcolor_to_rgb565(hex) {
+    const r = parseInt(hex.substr(1, 2), 16);
+    const g = parseInt(hex.substr(3, 2), 16);
+    const b = parseInt(hex.substr(5, 2), 16);
+    return (((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)) & 0xFFFF;
+}
+
+function rgb565_to_hexcolor(c) {
+    const r5 = (c >> 11) & 0x1F;
+    const g6 = (c >> 5) & 0x3F;
+    const b5 = c & 0x1F;
+    const r8 = (r5 << 3) | (r5 >> 2);
+    const g8 = (g6 << 2) | (g6 >> 4);
+    const b8 = (b5 << 3) | (b5 >> 2);
+    return '#' + [r8, g8, b8].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
 function readable_target_usage_name(usage) {
+    const usage_int = parseInt(usage, 16) >>> 0;
+    if (((usage_int & 0xFFFF0000) >>> 0) == RGB_LED_USAGE_PAGE) {
+        return 'RGB LED ' + rgb565_to_hexcolor(usage_int & 0xFFFF).toUpperCase();
+    }
     return (usage in usages[config['our_descriptor_number']]) ? usages[config['our_descriptor_number']][usage]['name'] : usage;
+}
+
+// Show the per-row LED color picker only when this row's target is an RGB LED,
+// and sync its swatch to the color currently encoded in the target usage.
+function set_led_color_visibility(mapping, mapping_container) {
+    const led_color_input = mapping_container.querySelector(".led_color_input");
+    if (!led_color_input) {
+        return;
+    }
+    const usage_int = parseInt(mapping['target_usage'], 16) >>> 0;
+    if (((usage_int & 0xFFFF0000) >>> 0) == RGB_LED_USAGE_PAGE) {
+        led_color_input.value = rgb565_to_hexcolor(usage_int & 0xFFFF);
+        led_color_input.classList.remove('d-none');
+    } else {
+        led_color_input.classList.add('d-none');
+    }
 }
 
 function set_forced_layers(mapping, mapping_container) {

@@ -378,6 +378,39 @@ inline uint8_t* get_sticky_state_ptr(uint32_t usage, uint8_t hub_port, bool assi
     return NULL;
 }
 
+#ifdef RGB_LED_ENABLED
+// RGB-LED output targets carry their color (RGB565) in the low 16 bits of the
+// target usage. We keep an ordered list of currently-active LED targets so that
+// the most-recently-activated one wins; the LED is off when the list is empty.
+static std::vector<uint32_t> active_led_targets;
+
+static void rgb_led_remove_target(uint32_t target) {
+    for (size_t i = 0; i < active_led_targets.size(); i++) {
+        if (active_led_targets[i] == target) {
+            active_led_targets.erase(active_led_targets.begin() + i);
+            return;
+        }
+    }
+}
+
+static void rgb_led_update_active(uint32_t target, bool active, bool prev_active) {
+    if (active && !prev_active) {  // rising edge: becomes most-recent
+        rgb_led_remove_target(target);
+        active_led_targets.push_back(target);
+    } else if (!active && prev_active) {  // falling edge
+        rgb_led_remove_target(target);
+    }
+}
+
+bool rgb_led_current_color(uint16_t* out_rgb565) {
+    if (active_led_targets.empty()) {
+        return false;
+    }
+    *out_rgb565 = active_led_targets.back() & 0xFFFF;
+    return true;
+}
+#endif
+
 void set_mapping_from_config() {
     std::unordered_map<uint64_t, std::vector<map_source_t>> reverse_mapping_map;  // hub_port+target -> sources list
     std::unordered_map<uint64_t, uint8_t> sticky_usage_map;
@@ -392,6 +425,9 @@ void set_mapping_from_config() {
     reverse_mapping.clear();
     reverse_mapping_macros.clear();
     reverse_mapping_layers.clear();
+#ifdef RGB_LED_ENABLED
+    active_led_targets.clear();
+#endif
     used_state_slots = 0;
     usage_state_ptr.clear();
     register_ptrs.clear();
@@ -660,6 +696,11 @@ void set_mapping_from_config() {
                 .size = 8 * sizeof(registers[0]),
                 .bitpos = (uint16_t) (((target & 0xFFFF) - 1) * 8 * sizeof(registers[0])),
             });
+#ifdef RGB_LED_ENABLED
+        } else if ((target & 0xFFFF0000) == RGB_LED_USAGE_PAGE) {
+            // RGB-LED target: the color lives in the usage's low 16 bits; there is no
+            // output bit-buffer. The LED is driven in process_mapping()/write_rgb_led().
+#endif
         } else {
             bool handled = false;
             for (auto const& array_usage : our_array_range_usages) {
@@ -1293,6 +1334,14 @@ void process_mapping(bool auto_repeat) {
             if ((value < 0) && !register_target) {
                 value = 0;
             }
+#ifdef RGB_LED_ENABLED
+            if ((target & 0xFFFF0000) == RGB_LED_USAGE_PAGE) {
+                bool led_active = (value != rev_map.default_value);
+                rgb_led_update_active(target, led_active, rev_map.led_prev_active);
+                rev_map.led_prev_active = led_active;
+                continue;
+            }
+#endif
             if (register_target) {
                 value *= 1000;
             }

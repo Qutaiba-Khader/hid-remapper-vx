@@ -161,6 +161,9 @@ struct reverse_mapping_t {
     uint8_t default_value = 0;  // should be int32_t theoretically, but currently all defaults fit uint8_t
     uint8_t hub_port = 0;
     bool is_relative = false;
+#ifdef RGB_LED_ENABLED
+    bool led_prev_active = false;  // runtime-only edge state for RGB-LED targets
+#endif
     std::vector<out_usage_def_t> our_usages;
     std::vector<map_source_t> sources;
 };

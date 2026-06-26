@@ -6,6 +6,7 @@
 #define GPIO_USAGE_PAGE 0xFFF40000
 #define DIGIPOT_USAGE_PAGE 0xFFF60000
 #define DPAD_USAGE_PAGE 0xFFF90000
+#define RGB_LED_USAGE_PAGE 0xFFFA0000  // low 16 bits = RGB565 color
 
 #define DPAD_USAGE_LEFT (DPAD_USAGE_PAGE | 1)
 #define DPAD_USAGE_RIGHT (DPAD_USAGE_PAGE | 2)
@@ -29,6 +30,11 @@ void interval_override_updated();
 
 void parse_our_descriptor();
 void process_mapping(bool auto_repeat);
+#ifdef RGB_LED_ENABLED
+// Returns true and writes the RGB565 color of the most-recently-activated RGB-LED
+// mapping that is still active; returns false when no RGB-LED mapping is active.
+bool rgb_led_current_color(uint16_t* out_rgb565);
+#endif
 void update_their_descriptor_derivates();
 bool send_report(send_report_t do_send_report);
 void queue_out_report(uint16_t interface, uint8_t report_id, const uint8_t* buffer, uint8_t len);

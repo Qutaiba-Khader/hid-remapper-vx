@@ -42,7 +42,7 @@ target_usage       = RGB_LED_USAGE_PAGE | rgb565
    - Expose current color: `active_led_targets.back() & 0xFFFF` (RGB565), or "off" when empty → **last-activated wins, off when none**.
 4. **`main.cc`** (all under `#ifdef RGB_LED_ENABLED`)
    - `rgb_led_init()`: claim a free PIO SM **after** the USB host claims its own (reuse the proven feasibility pattern), store PIO/sm in file-scope statics. Call it once before the main loop.
-   - `write_rgb_led()`: mirror `write_gpio()`. Force LED off when `suspended`. Else compute color = last active (or off), expand RGB565→RGB888→GRB, push to PIO **only when the color changed** since last send (avoid FIFO flooding at the 1 kHz tick).
+   - `write_rgb_led()`: mirror `write_gpio()`. Force LED off when `suspended`. Else compute color = last active (or off), expand RGB565→RGB888→GRB **scaled to a global brightness cap (`RGB_LED_BRIGHTNESS`, default 64/255 ≈ 25%) for LED longevity and eye comfort**, push to PIO **only when the color changed** since last send (avoid FIFO flooding at the 1 kHz tick).
    - Call `write_rgb_led()` immediately after `write_gpio()` each tick.
 5. **`remapper_single.cc`** — when `RGB_LED_ENABLED`, mask GP16 out of `get_gpio_valid_pins_mask()` so the GPIO subsystem never pulls/drives the PIO-owned LED pin.
 6. **`ws2812.pio`** — standard WS2812 PIO program + `ws2812_program_init` (reused from the feasibility test).

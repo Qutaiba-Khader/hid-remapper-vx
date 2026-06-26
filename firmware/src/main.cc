@@ -249,15 +249,21 @@ static uint rgb_led_sm;
 static bool rgb_led_ready = false;
 static uint32_t rgb_led_last_grb = 0xFFFFFFFF;  // sentinel: force the first write
 
-// Expand an RGB565 color to a WS2812 GRB byte word.
+// Global brightness cap (0-255). Kept well below full to limit current/heat
+// (longer LED life) and to be easy on the eyes. Applied to every color.
+#ifndef RGB_LED_BRIGHTNESS
+#define RGB_LED_BRIGHTNESS 64
+#endif
+
+// Expand an RGB565 color to a WS2812 GRB byte word, scaled to the brightness cap.
 static inline uint32_t rgb565_to_grb(uint16_t c) {
     uint8_t r5 = (c >> 11) & 0x1F;
     uint8_t g6 = (c >> 5) & 0x3F;
     uint8_t b5 = c & 0x1F;
-    uint8_t r8 = (r5 << 3) | (r5 >> 2);
-    uint8_t g8 = (g6 << 2) | (g6 >> 4);
-    uint8_t b8 = (b5 << 3) | (b5 >> 2);
-    return ((uint32_t) g8 << 16) | ((uint32_t) r8 << 8) | b8;
+    uint32_t r8 = (((r5 << 3) | (r5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
+    uint32_t g8 = (((g6 << 2) | (g6 >> 4)) * RGB_LED_BRIGHTNESS) / 255;
+    uint32_t b8 = (((b5 << 3) | (b5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
+    return (g8 << 16) | (r8 << 8) | b8;
 }
 
 // Claim a free PIO state machine AFTER the USB host has claimed its own, so the

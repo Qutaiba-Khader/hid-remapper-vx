@@ -1,0 +1,11 @@
+YD-RP2040 enclosure files
+=========================
+YD-RP2040_case_USBA_input.stl  - case with the input-side opening enlarged for a USB-A female (modified)
+YD-RP2040_lid.stl              - lid (unmodified original)
+
+Based on "YD-RP2040 HID-Remapper Enclosure" by snize
+Source : https://makerworld.com/en/models/386002-yd-rp2040-hid-remapper-enclosure
+License: CC BY-NC-ND 4.0  (https://creativecommons.org/licenses/by-nc-nd/4.0/)
+
+The case STL is a modified (derivative) version, provided for personal, non-commercial use.
+Full credit to the original author, snize.

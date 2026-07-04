@@ -40,7 +40,7 @@ There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`
 - **Dual inter-board UART:** default GP20/21/26/27; on the RP2040-Zero moved to **GP8/9/10/11** (all UART1) via `ZERO_DUAL_SERIAL`, because GP20/21 are underside pads. Dual **Board B uses native USB host** (USB-C + OTG) — not GP0/GP1.
 - **Onboard WS2812 RGB LED: GP16** (also default UART TX, so the `_led` build loses UART debug). Driven only when `RGB_LED_ENABLED`.
 - Serial pins are `#ifndef`-guarded in `firmware/src/serial.h` → overridable by compile definition or board header.
-- Full pinout + wiring diagrams: **`RP2040-ZERO.md`** and **`HARDWARE.md`**.
+- Full pinout + wiring diagrams: **[`RP2040-ZERO.md`](RP2040-ZERO.md)** and **[`HARDWARE.md`](HARDWARE.md)**.
 
 ## Custom output usage pages (firmware)
 
@@ -50,14 +50,14 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
 
 ## Repo layout
 
-- **`firmware/`** — Pico SDK C/C++.
-  - Entry variants: `remapper_single.cc` (single), `remapper_dual_a.cc` + `remapper_dual_b.cc` (dual), `remapper_serial.cc`.
-  - Shared: `remapper.cc` (mapping engine), `config.cc` (persisted config + commands), `main.cc`, `serial.cc` (dual UART link).
-  - Board headers: `firmware/src/boards/*.h` (selected by `PICO_BOARD`).
-  - `CMakeLists.txt` — targets + the opt-in feature options.
-- **`config-tool-web/`** — the WebHID config tool. `index.html` (UI + firmware download buttons), `code.js`, `usages.js`. Served via **GitHub Pages** (root `index.html` redirects to `config-tool-web/`).
-- **`.github/workflows/`** — `build-rp2040.yml`, `build-nrf52.yml`, `release.yml`.
-- **`custom-boards/`** — KiCad designs for JLCPCB boards.
+- **[`firmware/`](firmware)** — Pico SDK C/C++.
+  - Entry variants: [`remapper_single.cc`](firmware/src/remapper_single.cc) (single), [`remapper_dual_a.cc`](firmware/src/remapper_dual_a.cc) + [`remapper_dual_b.cc`](firmware/src/remapper_dual_b.cc) (dual), [`remapper_serial.cc`](firmware/src/remapper_serial.cc).
+  - Shared: [`remapper.cc`](firmware/src/remapper.cc) (mapping engine), [`config.cc`](firmware/src/config.cc) (persisted config + commands), [`main.cc`](firmware/src/main.cc), [`serial.cc`](firmware/src/serial.cc) (dual UART link).
+  - Board headers: [`firmware/src/boards/`](firmware/src/boards)`*.h` (selected by `PICO_BOARD`).
+  - [`firmware/CMakeLists.txt`](firmware/CMakeLists.txt) — targets + the opt-in feature options.
+- **[`config-tool-web/`](config-tool-web)** — the WebHID config tool. [`index.html`](config-tool-web/index.html) (UI + firmware download buttons), [`code.js`](config-tool-web/code.js), [`usages.js`](config-tool-web/usages.js). Served via **GitHub Pages** (root `index.html` redirects to `config-tool-web/`).
+- **[`.github/workflows/`](.github/workflows)** — [`build-rp2040.yml`](.github/workflows/build-rp2040.yml), [`build-nrf52.yml`](.github/workflows/build-nrf52.yml), [`release.yml`](.github/workflows/release.yml).
+- **[`custom-boards/`](custom-boards)** — KiCad designs for JLCPCB boards.
 
 ## Build / release workflow
 
@@ -67,7 +67,7 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
 
 ## Docs
 
-- `README.md` — user overview, wiring summaries, download links.
-- `HARDWARE.md` — building the physical device (single, dual, RP2040-Zero).
-- `RP2040-ZERO.md` — full RP2040-Zero / RP2350-Zero reference (this fork's addition).
-- `BLUETOOTH.md`, `SERIAL.md`, `EXPRESSIONS.md` — feature docs. `CHANGELOG.md`.
+- [`README.md`](README.md) — user overview, wiring summaries, download links.
+- [`HARDWARE.md`](HARDWARE.md) — building the physical device (single, dual, RP2040-Zero).
+- [`RP2040-ZERO.md`](RP2040-ZERO.md) — full RP2040-Zero / RP2350-Zero reference (this fork's addition).
+- [`BLUETOOTH.md`](BLUETOOTH.md), [`SERIAL.md`](SERIAL.md), [`EXPRESSIONS.md`](EXPRESSIONS.md) — feature docs. [`CHANGELOG.md`](CHANGELOG.md).

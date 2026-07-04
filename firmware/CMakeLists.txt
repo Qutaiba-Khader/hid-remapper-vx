@@ -159,6 +159,19 @@ target_link_libraries(remapper_dual_b
 pico_add_extra_outputs(remapper_dual_b)
 pico_add_hex_output(remapper_dual_b)
 
+# --- RP2040-Zero dual serial pin relocation (opt-in). Enabled only with
+# -DZERO_DUAL_SERIAL=ON, which produces remapper_rp2040_zero_dual_a/b.uf2 with
+# the inter-Pico UART moved off GP20/GP21 (which are on the underside SMD pads
+# of the RP2040-Zero and hard to solder) onto the edge-accessible UART1 pins
+# GP8/GP9/GP10/GP11. Both dual targets must use the same pins. Default (OFF)
+# builds keep the stock GP20/21/26/27 and are byte-identical to upstream, so the
+# existing remapper_dual_a/b.uf2 and every other board build are unaffected. ---
+option(ZERO_DUAL_SERIAL "Relocate dual-Pico serial UART to edge pins GP8-11 for RP2040-Zero" OFF)
+if(ZERO_DUAL_SERIAL)
+    target_compile_definitions(remapper_dual_a PUBLIC SERIAL_TX_PIN=8 SERIAL_RX_PIN=9 SERIAL_CTS_PIN=10 SERIAL_RTS_PIN=11)
+    target_compile_definitions(remapper_dual_b PUBLIC SERIAL_TX_PIN=8 SERIAL_RX_PIN=9 SERIAL_CTS_PIN=10 SERIAL_RTS_PIN=11)
+endif()
+
 add_custom_command(
   OUTPUT dual_b_binary.c dual_b_binary.h
   DEPENDS remapper_dual_b

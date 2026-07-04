@@ -29,7 +29,7 @@ Use Chrome or a Chromium-based browser (WebHID required).
 
 This is a USB HID remapper that sits between your remote's USB receiver and the Android TV device. It intercepts HID input events and remaps them according to your configuration — entirely in hardware, no host software needed.
 
-## Wiring (RP2040-Zero / RP2350-Zero + USB-A)
+## Single-board wiring (RP2040-Zero / RP2350-Zero + USB-A)
 
 The board's own USB-C connects to the host. A USB-A port for the device you want to remap (keyboard/mouse/receiver) is wired to four pads using the standard USB wire colors:
 
@@ -46,6 +46,31 @@ Notes:
 - The PIO USB host is fixed to the **GP0 (D+) / GP1 (D−)** pair — they must stay adjacent and cannot be moved.
 - **5V = VSYS = VBUS**, tied to the board's USB-C VBUS, so it supplies bus power out to the attached device.
 - Flash the plain `remapper_pico.uf2` for the **RP2040-Zero**, or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED control) for the **RP2350-Zero**.
+
+## Dual-board wiring (two RP2040-Zero boards)
+
+The **dual-Pico** build uses two RP2040-Zero boards and has **better device compatibility** than the single-board build: Board B reads your keyboard/mouse through the RP2040's *real hardware USB host* instead of the bit-banged PIO-USB, so devices (and USB hubs) that don't work on the single build often work here.
+
+The two boards talk to each other over a UART link. On the RP2040-Zero the stock UART pins (GP20/GP21) are on the hard-to-reach underside pads, so this build moves the link to the edge-accessible **UART1 pins GP8/GP9/GP10/GP11**.
+
+![Two RP2040-Zero dual wiring](images/rp2040-zero-dual-diagram.png)
+
+**Six wires between the two boards:**
+
+| Board A (→ PC) | Board B (→ input devices) |
+|----------------|---------------------------|
+| 5V | 5V |
+| GND | GND |
+| GP8 (TX) | GP9 (RX) |
+| GP9 (RX) | GP8 (TX) |
+| GP10 (CTS) | GP11 (RTS) |
+| GP11 (RTS) | GP10 (CTS) |
+
+- **Board A** → your computer, via its USB-C port. Flash it with **`remapper_rp2040_zero_dual_a.uf2`**.
+- **Board B** → your keyboard/mouse, through a **USB-C OTG adapter** on its USB-C port (native USB host — no USB-A breakout or GP0/GP1 wiring is used in the dual build). Flash it with **`remapper_rp2040_zero_dual_b.uf2`**.
+- Flash each board separately (hold BOOTSEL, plug in, drag the `.uf2` to the drive). There's no combined single-flash image — the RP2040-Zero doesn't expose its SWD port, and you don't need it.
+
+Downloads: [Board A](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_a.uf2) · [Board B](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_b.uf2)
 
 ## Quick Start
 

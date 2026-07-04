@@ -63,6 +63,11 @@ jobs:
           PICO_BOARD=pico2 cmake .. -DRGB_LED_ENABLED=ON
           make -j$(nproc) remapper
           cd ..
+          mkdir build-rp2040-zero-dual
+          cd build-rp2040-zero-dual
+          PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON
+          make -j$(nproc) remapper_dual_a remapper_dual_b
+          cd ..
           mkdir build-waveshare_rp2350_usb_a
           cd build-waveshare_rp2350_usb_a
           PICO_BOARD=waveshare_rp2350_usb_a cmake ..
@@ -106,6 +111,8 @@ jobs:
           mv build-pico2/remapper_dual_b.uf2 artifacts/remapper_pico2_dual_b.uf2
           mv build-pico2/remapper_dual_combined.uf2 artifacts/remapper_pico2_dual_combined.uf2
           mv build-pico2-led/remapper.uf2 artifacts/remapper_pico2_led.uf2
+          mv build-rp2040-zero-dual/remapper_dual_a.uf2 artifacts/remapper_rp2040_zero_dual_a.uf2
+          mv build-rp2040-zero-dual/remapper_dual_b.uf2 artifacts/remapper_rp2040_zero_dual_b.uf2
           mv build-waveshare_rp2350_usb_a/remapper.uf2 artifacts/remapper_waveshare_rp2350_usb_a.uf2
           mv build-flatbox_rev4/remapper.uf2 artifacts/remapper_flatbox_rev4.uf2
           mv build-flatbox_rev8/remapper.uf2 artifacts/remapper_flatbox_rev8.uf2

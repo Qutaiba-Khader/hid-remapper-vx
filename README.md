@@ -29,6 +29,24 @@ Use Chrome or a Chromium-based browser (WebHID required).
 
 This is a USB HID remapper that sits between your remote's USB receiver and the Android TV device. It intercepts HID input events and remaps them according to your configuration — entirely in hardware, no host software needed.
 
+## Wiring (RP2040-Zero / RP2350-Zero + USB-A)
+
+The board's own USB-C connects to the host. A USB-A port for the device you want to remap (keyboard/mouse/receiver) is wired to four pads using the standard USB wire colors:
+
+![RP2040-Zero to USB-A wiring](images/rp2040-zero-usb-wiring.png)
+
+| USB-A pin | Wire color | Board pad |
+|-----------|-----------|-----------|
+| VBUS | 🔴 red | **5V** |
+| D− | ⚪ white | **GP1** |
+| D+ | 🟢 green | **GP0** |
+| GND | ⚫ black | **GND** |
+
+Notes:
+- The PIO USB host is fixed to the **GP0 (D+) / GP1 (D−)** pair — they must stay adjacent and cannot be moved.
+- **5V = VSYS = VBUS**, tied to the board's USB-C VBUS, so it supplies bus power out to the attached device.
+- Flash the plain `remapper_pico.uf2` for the **RP2040-Zero**, or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED control) for the **RP2350-Zero**.
+
 ## Quick Start
 
 1. Flash the appropriate firmware to your RP2040-based board (see [original docs](https://github.com/jfedor2/hid-remapper#how-to-make-the-device))

@@ -1,5 +1,17 @@
 # Changelog
 
+## RP2040-Zero dual build — r2026-07-04
+
+- New opt-in `ZERO_DUAL_SERIAL` CMake option: two-board (dual) firmware for the RP2040-Zero with the inter-board UART on the edge-accessible UART1 pins **GP8/GP9/GP10/GP11** (instead of the underside GP20/GP21 pads).
+- New files: `remapper_rp2040_zero_dual_a.uf2` (device side → PC) and `remapper_rp2040_zero_dual_b.uf2` (host side → devices via USB-C OTG).
+- Web-tool download buttons, README + `HARDWARE.md` wiring, a two-board wiring diagram, and the full **`RP2040-ZERO.md`** reference.
+- Added repo **`CLAUDE.md`** (agent/developer guide).
+- Stock `remapper_dual_a/b.uf2` and all other builds are unchanged — the option defaults OFF.
+
+## Onboard RGB LED — r2026-06-26
+
+- New opt-in `RGB_LED_ENABLED` CMake option: drives the RP2350-Zero onboard WS2812 (GP16) as a mappable color target — 16 presets, color encoded as RGB565 on usage page `0xFFFA`, no `CONFIG_VERSION` change. New file: `remapper_pico2_led.uf2`.
+
 ## VX — Visual Enhanced - v1.0 (2026-05-05)
 
 ### Config Tool Web UI

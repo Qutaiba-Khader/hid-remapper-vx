@@ -45,7 +45,9 @@ The board's own USB-C connects to the host. A USB-A port for the device you want
 Notes:
 - The PIO USB host is fixed to the **GP0 (D+) / GP1 (D−)** pair — they must stay adjacent and cannot be moved.
 - **5V = VSYS = VBUS**, tied to the board's USB-C VBUS, so it supplies bus power out to the attached device.
-- Flash the plain `remapper_pico.uf2` for the **RP2040-Zero**, or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED control) for the **RP2350-Zero**.
+- Flash the plain `remapper.uf2` for the **RP2040-Zero**, or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED control) for the **RP2350-Zero**.
+
+See **[RP2040-ZERO.md](RP2040-ZERO.md)** for the full RP2040-Zero / RP2350-Zero reference (pinout, every firmware file, single + dual + RGB LED, building from source).
 
 ## Dual-board wiring (two RP2040-Zero boards)
 

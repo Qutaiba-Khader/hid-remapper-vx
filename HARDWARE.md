@@ -41,3 +41,41 @@ The [enclosure](enclosure) folder has 3D-printable files for an optional case, s
 
 ![HID Remapper dual Pico version inside](images/remapper-dual2.jpg)
 ![HID Remapper dual Pico version](images/remapper-dual1.jpg)
+
+### RP2040-Zero variant
+
+The dual build also works with two [Waveshare RP2040-Zero](https://www.waveshare.com/wiki/RP2040-Zero) boards (a compact, Pico-compatible RP2040 board). On the RP2040-Zero the stock serial pins GPIO20/GPIO21 are on the small pads on the underside of the board and are awkward to solder, so this fork provides a build that moves the inter-board UART to the edge-accessible **UART1 pins GPIO8/GPIO9/GPIO10/GPIO11**.
+
+| A side | B side |
+| -----: | -----: |
+| 5V | 5V |
+| GND | GND |
+| GPIO8 (TX) | GPIO9 (RX) |
+| GPIO9 (RX) | GPIO8 (TX) |
+| GPIO10 (CTS) | GPIO11 (RTS) |
+| GPIO11 (RTS) | GPIO10 (CTS) |
+
+![Two RP2040-Zero dual wiring](images/rp2040-zero-dual-diagram.png)
+
+Both boards run the **same** firmware (GPIO8=TX, GPIO9=RX, GPIO10=CTS, GPIO11=RTS); the crossover (TX↔RX, RTS↔CTS) happens in the wiring. The A side connects to the computer via its USB-C port; the B side connects to your input device through a **USB-C OTG adapter** — it uses the RP2040's hardware USB host, so there is no USB-A / GPIO0-GPIO1 wiring in the dual build.
+
+Flash the two boards separately (hold BOOTSEL, connect, copy the UF2):
+
+- A side (to the computer): [remapper_rp2040_zero_dual_a.uf2](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_a.uf2)
+- B side (to input devices): [remapper_rp2040_zero_dual_b.uf2](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_b.uf2)
+
+There is no combined single-flash image for the RP2040-Zero: the combined image programs the B side over SWD, and the RP2040-Zero does not break out its SWD pads. Flashing each board separately does not need them.
+
+The valid UART1 pins on the RP2040 are TX: GPIO4/8/20/24, RX: GPIO5/9/21/25, CTS: GPIO6/10/22/26, RTS: GPIO7/11/23/27 — GPIO8-11 are used because they are contiguous and on the board edge. (Approach based on [yyoshisaur's write-up](https://yyoshisaur.hatenablog.com/entry/2023/11/25/120000) and [jfedor2/hid-remapper#263](https://github.com/jfedor2/hid-remapper/issues/263).)
+
+#### Building it yourself
+
+The two RP2040-Zero files are produced by building the dual targets with the `ZERO_DUAL_SERIAL` CMake option (which sets the serial pins to GPIO8-11):
+
+```bash
+mkdir build-rp2040-zero-dual && cd build-rp2040-zero-dual
+PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON
+make remapper_dual_a remapper_dual_b
+```
+
+The option defaults to OFF, so the standard `remapper_dual_a.uf2` / `remapper_dual_b.uf2` builds (GPIO20/21/26/27) are byte-identical and unaffected. To use different pins, edit the option block in `firmware/CMakeLists.txt` — any valid UART1 pins from the table above will work.

@@ -256,8 +256,13 @@ static uint32_t rgb_led_last_wire = 0xFFFFFFFF;  // sentinel: force the first wr
 #endif
 
 // Expand an RGB565 color to the WS2812 wire word, scaled to the brightness cap.
-// NOTE: this board's onboard WS2812 uses RGB byte order (not the usual GRB) --
-// confirmed by calibration (intended red showed green under GRB).
+// Byte order is board-dependent and selected at compile time:
+//   - default (RGB): the RP2350-Zero onboard WS2812 -- confirmed on hardware.
+//   - RGB_LED_GRB:   the RP2040-Zero onboard WS2812 is standard GRB -- confirmed
+//                    on hardware 2026-07-06 (MicroPython neopixel test: logical
+//                    R/G/B each displayed correctly, i.e. matched standard GRB).
+// The web-tool presets (RGB565 on page 0xFFFA) are identical for every board;
+// only this wire-order pack differs, so colors land in the same positions.
 static inline uint32_t rgb565_to_wire(uint16_t c) {
     uint8_t r5 = (c >> 11) & 0x1F;
     uint8_t g6 = (c >> 5) & 0x3F;
@@ -265,7 +270,11 @@ static inline uint32_t rgb565_to_wire(uint16_t c) {
     uint32_t r8 = (((r5 << 3) | (r5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
     uint32_t g8 = (((g6 << 2) | (g6 >> 4)) * RGB_LED_BRIGHTNESS) / 255;
     uint32_t b8 = (((b5 << 3) | (b5 >> 2)) * RGB_LED_BRIGHTNESS) / 255;
-    return (r8 << 16) | (g8 << 8) | b8;  // RGB order for this board
+#ifdef RGB_LED_GRB
+    return (g8 << 16) | (r8 << 8) | b8;  // GRB order (RP2040-Zero)
+#else
+    return (r8 << 16) | (g8 << 8) | b8;  // RGB order (RP2350-Zero)
+#endif
 }
 
 // Claim a free PIO state machine AFTER the USB host has claimed its own, so the

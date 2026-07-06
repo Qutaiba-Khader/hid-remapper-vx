@@ -2,6 +2,8 @@
 
 Guidance for AI agents (and developers) working in this repo. **Read this first, then act — don't guess.**
 
+> **Touching firmware or the web tool?** Read [`CODEMAP.md`](CODEMAP.md) first — it maps each subsystem to its file/symbol with grep recipes, so you don't re-derive the layout every session.
+
 ## What this is
 
 A fork of [jfedor2/hid-remapper](https://github.com/jfedor2/hid-remapper) (upstream docs: [remapper.org](https://www.remapper.org/)). It's a **USB HID remapper**: firmware for RP2040 / RP2350 (and nRF52840) boards that sits between an input device and the host and remaps HID events, plus a **WebHID config tool**. This "VX" fork adds a dark-themed web UI, Android TV usages, an onboard RGB LED output target, and an RP2040-Zero dual build.
@@ -27,8 +29,10 @@ CI (`.github/workflows/build-rp2040.yml`) builds each variant in its own dir and
 | Pico / **RP2040-Zero** (single) | `cmake ..` (default) | `remapper.uf2` |
 | Pico 2 / **RP2350-Zero** (single) | `PICO_BOARD=pico2 cmake ..` | `remapper_pico2.uf2` |
 | RP2350-Zero + onboard RGB LED | `PICO_BOARD=pico2 cmake .. -DRGB_LED_ENABLED=ON` | `remapper_pico2_led.uf2` |
+| **RP2040-Zero** + onboard RGB LED (single) | `PICO_BOARD=pico cmake .. -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON` | `remapper_rp2040_zero_led.uf2` |
 | Two Picos (dual) | default, `make remapper_dual_a remapper_dual_b` | `remapper_dual_a.uf2`, `remapper_dual_b.uf2` |
 | Two **RP2040-Zero** (dual) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON` | `remapper_rp2040_zero_dual_a.uf2`, `_b.uf2` |
+| Two **RP2040-Zero** (dual, Side A + LED) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON` (make `remapper_dual_a`) | `remapper_rp2040_zero_dual_a_led.uf2` |
 | Custom JLCPCB boards | `PICO_BOARD=remapper_v7`/`v8`/… | `remapper_board*.uf2` |
 | nRF52840 (Bluetooth) | `build-nrf52.yml` | see `BLUETOOTH.md` |
 
@@ -38,7 +42,7 @@ There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`
 
 - **USB host (single build):** bit-banged PIO-USB on **GP0 (D+) / GP1 (D−)** — `PICO_DEFAULT_PIO_USB_DP_PIN=0`, D− = DP+1. Fixed adjacent pair.
 - **Dual inter-board UART:** default GP20/21/26/27; on the RP2040-Zero moved to **GP8/9/10/11** (all UART1) via `ZERO_DUAL_SERIAL`, because GP20/21 are underside pads. Dual **Board B uses native USB host** (USB-C + OTG) — not GP0/GP1.
-- **Onboard WS2812 RGB LED: GP16** (also default UART TX, so the `_led` build loses UART debug). Driven only when `RGB_LED_ENABLED`.
+- **Onboard WS2812 RGB LED: GP16** (also default UART TX, so the `_led` build loses UART debug). Driven only when `RGB_LED_ENABLED`. **Wire byte order differs per board — RP2350-Zero = RGB, RP2040-Zero = GRB — selected by `RGB_LED_GRB` (default OFF = RGB).** Web-tool presets are identical across boards; only the firmware pack differs. Also enabled on dual Board A.
 - Serial pins are `#ifndef`-guarded in `firmware/src/serial.h` → overridable by compile definition or board header.
 - Full pinout + wiring diagrams: **[`RP2040-ZERO.md`](RP2040-ZERO.md)** and **[`HARDWARE.md`](HARDWARE.md)**.
 
@@ -67,6 +71,7 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
 
 ## Docs
 
+- [`CODEMAP.md`](CODEMAP.md) — **subsystem → file:symbol index + grep recipes. Read before touching firmware/web tool.**
 - [`README.md`](README.md) — user overview, wiring summaries, download links.
 - [`HARDWARE.md`](HARDWARE.md) — building the physical device (single, dual, RP2040-Zero).
 - [`RP2040-ZERO.md`](RP2040-ZERO.md) — full RP2040-Zero / RP2350-Zero reference (this fork's addition).

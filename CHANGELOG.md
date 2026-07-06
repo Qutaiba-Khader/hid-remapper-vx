@@ -1,5 +1,14 @@
 # Changelog
 
+## RP2040-Zero onboard RGB LED — r2026-07-06
+
+- New opt-in `RGB_LED_GRB` CMake option: onboard WS2812 (GP16) support for the **RP2040-Zero**, whose LED is standard **GRB** byte order (the RP2350-Zero is RGB). The 16 web-tool color presets are identical across boards; only the firmware's wire byte order differs, so a preset shows the same color on every board.
+- New files:
+  - `remapper_rp2040_zero_led.uf2` — single-board RP2040-Zero + onboard LED.
+  - `remapper_rp2040_zero_dual_a_led.uf2` — dual **Side A** with the onboard LED. Side A runs the mapping engine, so its LED reacts to your mappings exactly like the single board; Side B has no LED. The RP2040-Zero dual now ships as this LED build (the plain `remapper_rp2040_zero_dual_a.uf2` is still published).
+- Web-tool download buttons and `RP2040-ZERO.md` updated; new **`CODEMAP.md`** (agent/developer subsystem→file index) linked from `CLAUDE.md`.
+- Stock builds and `remapper_pico2_led.uf2` stay byte-identical — both `RGB_LED_ENABLED` and `RGB_LED_GRB` default OFF.
+
 ## RP2040-Zero dual build — r2026-07-04
 
 - New opt-in `ZERO_DUAL_SERIAL` CMake option: two-board (dual) firmware for the RP2040-Zero with the inter-board UART on the edge-accessible UART1 pins **GP8/GP9/GP10/GP11** (instead of the underside GP20/GP21 pads).

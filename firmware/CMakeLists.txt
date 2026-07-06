@@ -84,15 +84,25 @@ else()
 endif()
 pico_add_extra_outputs(remapper)
 
-# --- RGB LED output (opt-in). Enabled only with -DRGB_LED_ENABLED=ON, which
-# produces the separate remapper_pico2_led.uf2. Default (OFF) builds are
-# byte-identical to upstream. Note: GP16 is also the default UART TX pin on
-# pico/pico2, so the _led build claims GP16 for the WS2812 and loses UART
-# serial-console debug output (USB-CDC stdio is unaffected). ---
+# --- RGB LED output (opt-in). Enabled only with -DRGB_LED_ENABLED=ON. On the
+# single-board target this produces remapper_pico2_led.uf2 (RP2350-Zero) or
+# remapper_rp2040_zero_led.uf2 (RP2040-Zero -- add -DRGB_LED_GRB=ON). Default
+# (OFF) builds are byte-identical to upstream. Note: GP16 is also the default
+# UART TX pin on pico/pico2, so the _led build claims GP16 for the WS2812 and
+# loses UART serial-console debug output (USB-CDC stdio is unaffected).
+#
+# RGB_LED_GRB selects the WS2812 wire byte order: OFF (default) = RGB, correct
+# for the RP2350-Zero; ON = GRB, correct for the RP2040-Zero (both confirmed on
+# hardware). The web tool's RGB565 presets are board-agnostic; only this flag
+# differs per board. It is applied to remapper_dual_a further below as well. ---
 option(RGB_LED_ENABLED "Drive onboard WS2812 RGB LED output on GP16" OFF)
+option(RGB_LED_GRB "Onboard WS2812 uses GRB byte order (RP2040-Zero); OFF = RGB (RP2350-Zero)" OFF)
 if(RGB_LED_ENABLED)
     pico_generate_pio_header(remapper ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
     target_compile_definitions(remapper PUBLIC RGB_LED_ENABLED RGB_LED_PIN=16)
+    if(RGB_LED_GRB)
+        target_compile_definitions(remapper PUBLIC RGB_LED_GRB)
+    endif()
 endif()
 
 
@@ -135,6 +145,21 @@ target_link_libraries(remapper_dual_a
 )
 pico_generate_pio_header(remapper_dual_a ${CMAKE_CURRENT_LIST_DIR}/src/pico_debug/swd.pio)
 pico_add_extra_outputs(remapper_dual_a)
+
+# --- RGB LED on dual Board A (opt-in, same -DRGB_LED_ENABLED / -DRGB_LED_GRB
+# flags as the single build). Board A shares main.cc's main loop and runs the
+# mapping engine, so its onboard WS2812 lights from your mappings exactly like
+# the single-board build. Built as remapper_rp2040_zero_dual_a_led.uf2 with
+# PICO_BOARD=pico -DZERO_DUAL_SERIAL=ON -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON.
+# Board B (remapper_dual_b) is unchanged and has no LED code. Default
+# (RGB_LED_ENABLED OFF) keeps remapper_dual_a byte-identical. ---
+if(RGB_LED_ENABLED)
+    pico_generate_pio_header(remapper_dual_a ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
+    target_compile_definitions(remapper_dual_a PUBLIC RGB_LED_ENABLED RGB_LED_PIN=16)
+    if(RGB_LED_GRB)
+        target_compile_definitions(remapper_dual_a PUBLIC RGB_LED_GRB)
+    endif()
+endif()
 
 add_executable(remapper_dual_b
     src/remapper_dual_b.cc

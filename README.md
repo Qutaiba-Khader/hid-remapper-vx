@@ -45,7 +45,7 @@ The board's own USB-C connects to the host. A USB-A port for the device you want
 Notes:
 - The PIO USB host is fixed to the **GP0 (D+) / GP1 (D−)** pair — they must stay adjacent and cannot be moved.
 - **5V = VSYS = VBUS**, tied to the board's USB-C VBUS, so it supplies bus power out to the attached device.
-- Flash the plain `remapper.uf2` for the **RP2040-Zero**, or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED control) for the **RP2350-Zero**.
+- Flash the plain `remapper.uf2` for the **RP2040-Zero** (or `remapper_rp2040_zero_led.uf2` for onboard RGB LED control), or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED) for the **RP2350-Zero**.
 
 See **[RP2040-ZERO.md](RP2040-ZERO.md)** for the full RP2040-Zero / RP2350-Zero reference (pinout, every firmware file, single + dual + RGB LED, building from source).
 
@@ -68,11 +68,11 @@ The two boards talk to each other over a UART link. On the RP2040-Zero the stock
 | GP10 (CTS) | GP11 (RTS) |
 | GP11 (RTS) | GP10 (CTS) |
 
-- **Board A** → your computer, via its USB-C port. Flash it with **`remapper_rp2040_zero_dual_a.uf2`**.
+- **Board A** → your computer, via its USB-C port. Flash it with **`remapper_rp2040_zero_dual_a_led.uf2`** — this build also drives Board A's onboard WS2812 RGB LED (GP16) as a mappable target (Board A runs the mapping engine). A plain non-LED **`remapper_rp2040_zero_dual_a.uf2`** is also available.
 - **Board B** → your keyboard/mouse, through a **USB-C OTG adapter** on its USB-C port (native USB host — no USB-A breakout or GP0/GP1 wiring is used in the dual build). Flash it with **`remapper_rp2040_zero_dual_b.uf2`**.
 - Flash each board separately (hold BOOTSEL, plug in, drag the `.uf2` to the drive). There's no combined single-flash image — the RP2040-Zero doesn't expose its SWD port, and you don't need it.
 
-Downloads: [Board A](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_a.uf2) · [Board B](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_b.uf2)
+Downloads: [Board A (+ LED)](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_a_led.uf2) · [Board B](https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_rp2040_zero_dual_b.uf2)
 
 ## Quick Start
 

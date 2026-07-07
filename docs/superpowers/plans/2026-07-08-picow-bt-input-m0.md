@@ -340,7 +340,6 @@ if(PICO_BOARD STREQUAL "pico_w")
         pico_cyw43_arch_none
         pico_btstack_cyw43
         pico_btstack_classic
-        pico_btstack_hid
     )
     pico_enable_stdio_usb(remapper_picow 1)
     pico_enable_stdio_uart(remapper_picow 0)
@@ -363,7 +362,7 @@ gh run watch "$(gh run list --workflow=build-picow.yml -L1 --json databaseId --j
 ```
 Expected: workflow **succeeds**, artifact `remapper_picow.uf2` produced. Common failures & fixes:
 - `btstack_config.h not found` → the `target_include_directories(... src)` line is missing.
-- undefined `hid_host_*` / `gap_inquiry_start` → `pico_btstack_hid` / `pico_btstack_classic` not linked, or an edit removed a needed include (`btstack.h`).
+- undefined `hid_host_*` / `gap_inquiry_start` → `pico_btstack_classic` not linked (it provides the HID host), or an edit removed a needed include (`btstack.h`).
 - `pico_btstack_*` unknown → pico-sdk submodule too old or btstack sub-submodule not initialised (`submodules: recursive`).
 
 - [ ] **Step 7 (hardware): Pair the ring and dump reports — the M0 success gate**

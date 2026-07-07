@@ -66,7 +66,8 @@ The **back half is reused untouched** in later milestones (mapping engine `remap
   so it is only configured for `pico_w` and never built by the default `cmake ..`. Every existing
   `.uf2` remains byte-identical.
 - Links: `pico_stdlib`, `pico_cyw43_arch_none` (poll mode for M0), `pico_btstack_cyw43`,
-  `pico_btstack_classic`, `pico_btstack_hid`. USB-CDC stdio enabled for the report dump.
+  `pico_btstack_classic` (the HID-host code lives inside this library — there is no
+  separate `pico_btstack_hid` lib). USB-CDC stdio enabled for the report dump.
 - M0 uses **poll-mode** cyw43_arch for simplicity. Coexistence of BTstack with the TinyUSB device
   stack (needed from M1) is the known hard part and is flagged as M1's primary risk.
 

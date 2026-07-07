@@ -375,9 +375,9 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                             // allows the application to request a protocol mode.
 
                             // For available protocol modes, see hid_protocol_mode_t in btstack_hid.h file.
-                            if (hid_subevent_incoming_connection_get_status(packet) == ERROR_CODE_SUCCESS) {
-                                hid_host_accept_connection(hid_subevent_incoming_connection_get_hid_cid(packet), hid_host_report_mode);
-                            }
+                            // NOTE: the pinned BTstack (pico-sdk submodule) predates
+                            // hid_subevent_incoming_connection_get_status(); accept unconditionally.
+                            hid_host_accept_connection(hid_subevent_incoming_connection_get_hid_cid(packet), hid_host_report_mode);
                             break;
                         
                         case HID_SUBEVENT_CONNECTION_OPENED:

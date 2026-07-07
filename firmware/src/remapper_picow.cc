@@ -10,7 +10,7 @@ int main() {
     sleep_ms(2000);  // give the USB serial host time to attach before logs start
     printf("remapper_picow: starting Bluetooth Classic HID host\n");
 
-    bt_host_init();  // inits cyw43 + BTstack; do NOT call cyw43_arch_init() here too
+    bt_host_init();  // bt_host_init() brings up cyw43 + BTstack
     bt_host_run();   // runs the BTstack loop forever
     return 0;
 }

@@ -270,10 +270,15 @@ add_custom_target(remapper_dual_combined ALL
 if(PICO_BOARD STREQUAL "pico_w")
     add_executable(remapper_picow
         src/remapper_picow.cc
+        src/bt_host.c
     )
+    target_include_directories(remapper_picow PRIVATE src)  # finds btstack_config.h
     target_link_libraries(remapper_picow
         pico_stdlib
         pico_cyw43_arch_none
+        pico_btstack_cyw43
+        pico_btstack_classic
+        pico_btstack_hid
     )
     # Serial over the Pico W's own USB (no UART adapter / no extra hardware).
     pico_enable_stdio_usb(remapper_picow 1)

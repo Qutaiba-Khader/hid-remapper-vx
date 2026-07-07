@@ -278,7 +278,6 @@ if(PICO_BOARD STREQUAL "pico_w")
         pico_cyw43_arch_none
         pico_btstack_cyw43
         pico_btstack_classic
-        pico_btstack_hid
     )
     # Serial over the Pico W's own USB (no UART adapter / no extra hardware).
     pico_enable_stdio_usb(remapper_picow 1)

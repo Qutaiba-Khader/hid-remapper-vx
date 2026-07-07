@@ -262,3 +262,21 @@ add_custom_command(
 add_custom_target(remapper_dual_combined ALL
     DEPENDS remapper_dual_combined.uf2
 )
+
+# --- Pico W Bluetooth Classic build (opt-in, isolated). Only configured when
+# PICO_BOARD=pico_w, so the default `cmake ..` and every other board build stay
+# byte-identical (golden rule #1). Task 1 is a heartbeat that proves toolchain +
+# CYW43 + USB-CDC serial + CI. Task 2 adds BTstack HID host (bt_host + config). ---
+if(PICO_BOARD STREQUAL "pico_w")
+    add_executable(remapper_picow
+        src/remapper_picow.cc
+    )
+    target_link_libraries(remapper_picow
+        pico_stdlib
+        pico_cyw43_arch_none
+    )
+    # Serial over the Pico W's own USB (no UART adapter / no extra hardware).
+    pico_enable_stdio_usb(remapper_picow 1)
+    pico_enable_stdio_uart(remapper_picow 0)
+    pico_add_extra_outputs(remapper_picow)
+endif()

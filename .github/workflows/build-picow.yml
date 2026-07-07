@@ -1,0 +1,46 @@
+name: build-picow
+on:
+  push:
+    branches:
+      - feature/picow-bt-input
+    paths:
+      - 'firmware/src/remapper_picow.cc'
+      - 'firmware/src/bt_host.c'
+      - 'firmware/src/bt_host.h'
+      - 'firmware/src/btstack_config.h'
+      - 'firmware/CMakeLists.txt'
+      - '.github/workflows/build-picow.yml'
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash --noprofile --norc -x -e -o pipefail {0}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # pico-sdk's btstack + cyw43 are nested submodules
+      - name: Install compiler and tools
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord
+      - name: Build remapper_picow
+        working-directory: ./firmware
+        run: |
+          mkdir build-picow
+          cd build-picow
+          PICO_BOARD=pico_w cmake ..
+          make -j$(nproc) remapper_picow
+          cd ..
+          mkdir -p artifacts
+          mv build-picow/remapper_picow.uf2 artifacts/remapper_picow.uf2
+      - name: Verify artifact
+        run: |
+          ls -la firmware/artifacts/
+          test -f firmware/artifacts/remapper_picow.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remapper_picow-uf2
+          path: firmware/artifacts/remapper_picow.uf2

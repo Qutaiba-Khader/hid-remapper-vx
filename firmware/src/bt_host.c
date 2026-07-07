@@ -123,6 +123,7 @@ static uint8_t hid_descriptor_storage[MAX_ATTRIBUTE_VALUE_SIZE];
 // App
 static enum {
     APP_IDLE,
+    APP_CONNECTING,
     APP_CONNECTED
 } app_state = APP_IDLE;
 
@@ -350,6 +351,17 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                             // re-arm it so we keep scanning instead of going
                             // permanently silent.
                             gap_inquiry_start(INQUIRY_INTERVAL);
+                        } else {
+                            // Fix 4 (review): mark the connection attempt as
+                            // in-flight. gap_inquiry_stop() above still fires
+                            // GAP_EVENT_INQUIRY_COMPLETE shortly after, and at
+                            // that point app_state wasn't yet APP_CONNECTED
+                            // (that only happens once ACL+pairing+L2CAP setup
+                            // finishes in HID_SUBEVENT_CONNECTION_OPENED) --
+                            // without this, that COMPLETE event would re-arm
+                            // inquiry mid-connect and a fresh hid_host_connect()
+                            // could clobber the shared hid_host_cid.
+                            app_state = APP_CONNECTING;
                         }
                     }
                     break;
@@ -360,7 +372,10 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     // the M0 hardware test is flash -> open serial -> THEN
                     // put the ring in pairing mode. Keep scanning until a
                     // connection is established.
-                    if (app_state != APP_CONNECTED){
+                    // Fix 4 (review): only re-arm when truly idle -- not
+                    // while a connect is in flight (APP_CONNECTING) and not
+                    // once connected (APP_CONNECTED).
+                    if (app_state == APP_IDLE){
                         gap_inquiry_start(INQUIRY_INTERVAL);
                     }
                     break;

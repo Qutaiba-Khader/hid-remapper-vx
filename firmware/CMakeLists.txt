@@ -300,7 +300,6 @@ if(PICO_BOARD STREQUAL "pico_w")
     # client, so compile it (and its base helper) into the target directly.
     target_sources(remapper_picow_ble PRIVATE
         ${PICO_BTSTACK_PATH}/src/ble/gatt-service/hids_client.c
-        ${PICO_BTSTACK_PATH}/src/ble/gatt-service/gatt_service_client.c
     )
     pico_btstack_make_gatt_header(remapper_picow_ble PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/ble/ble_gatt.gatt)
     pico_enable_stdio_usb(remapper_picow_ble 1)

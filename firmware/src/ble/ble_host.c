@@ -464,7 +464,7 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         // continue - query primary services
         printf("Search for HID service.\n");
         app_state = W4_HID_CLIENT_CONNECTED;
-        hids_host_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
+        hids_client_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
     }
 }
 /* LISTING_END */
@@ -488,7 +488,7 @@ void ble_host_init(void){
     // setup ATT server - only needed if LE Peripheral does ATT queries on its own, e.g. Android and iOS
     att_server_init(profile_data, NULL, NULL);
 
-    hids_host_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
+    hids_client_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
 
     // register for events from HCI
     hci_event_callback_registration.callback = &packet_handler;

@@ -338,6 +338,12 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 // phone/TV could otherwise get grabbed instead of the ring.
                 // Log every result seen for debuggability.
                 case GAP_EVENT_INQUIRY_RESULT:
+                    // Fix 5 (review): gap_inquiry_stop() is asynchronous, so
+                    // already-queued peripheral results can still arrive
+                    // after we've moved past APP_IDLE. Each one would call
+                    // hid_host_connect() again and clobber the shared
+                    // hid_host_cid -- ignore results unless truly idle.
+                    if (app_state != APP_IDLE) break;
                     gap_event_inquiry_result_get_bd_addr(packet, event_addr);
                     cod = gap_event_inquiry_result_get_class_of_device(packet);
                     printf("Found device %s, CoD 0x%06lx\n", bd_addr_to_str(event_addr), (unsigned long) cod);
@@ -490,6 +496,15 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                             hid_host_cid = 0;
                             hid_host_descriptor_available = false;
                             printf("HID Host disconnected.\n");
+                            // Fix 5 (review): nothing re-arms scanning once we
+                            // drop out of APP_CONNECTED here, and the ring
+                            // sleeps aggressively between presses -- without
+                            // this the board goes permanently silent until a
+                            // power cycle. No inquiry is running at this
+                            // point, so starting one is safe (mirrors the
+                            // HID_SUBEVENT_CONNECTION_OPENED failure path).
+                            app_state = APP_IDLE;
+                            gap_inquiry_start(INQUIRY_INTERVAL);
                             break;
                         
                         default:

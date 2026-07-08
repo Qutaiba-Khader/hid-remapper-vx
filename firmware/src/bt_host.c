@@ -333,9 +333,10 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
                 // Edit B: connect to the first Classic HID device an inquiry
                 // finds (stand-in for typed pairing commands).
-                // Fix 3 (review): only connect to Peripheral-class devices
-                // (CoD major device class 0x05) -- in a dense-BT home a
-                // phone/TV could otherwise get grabbed instead of the ring.
+                // Fix 3 (review) + field fix: connect only to input-style
+                // devices -- CoD major device class Peripheral (0x05) or
+                // Audio/Video (0x04). The G20s voice remote reports 0x04 (it
+                // has a mic), so a Peripheral-only gate wrongly excluded it.
                 // Log every result seen for debuggability.
                 case GAP_EVENT_INQUIRY_RESULT:
                     // Fix 5 (review): gap_inquiry_stop() is asynchronous, so
@@ -347,7 +348,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     gap_event_inquiry_result_get_bd_addr(packet, event_addr);
                     cod = gap_event_inquiry_result_get_class_of_device(packet);
                     printf("Found device %s, CoD 0x%06lx\n", bd_addr_to_str(event_addr), (unsigned long) cod);
-                    if (((cod >> 8) & 0x1f) == 0x05){
+                    if (((cod >> 8) & 0x1f) == 0x05 || ((cod >> 8) & 0x1f) == 0x04){
                         printf("Inquiry result: %s, connecting...\n", bd_addr_to_str(event_addr));
                         gap_inquiry_stop();
                         status = hid_host_connect(event_addr, hid_host_report_mode, &hid_host_cid);

@@ -8,6 +8,7 @@ on:
       - 'firmware/src/bt_host.c'
       - 'firmware/src/bt_host.h'
       - 'firmware/src/btstack_config.h'
+      - 'firmware/src/ble/**'
       - 'firmware/CMakeLists.txt'
       - '.github/workflows/build-picow.yml'
   workflow_dispatch:
@@ -26,21 +27,23 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord
-      - name: Build remapper_picow
+      - name: Build remapper_picow + remapper_picow_ble
         working-directory: ./firmware
         run: |
           mkdir build-picow
           cd build-picow
           PICO_BOARD=pico_w cmake ..
-          make -j$(nproc) remapper_picow
+          make -j$(nproc) remapper_picow remapper_picow_ble
           cd ..
           mkdir -p artifacts
           mv build-picow/remapper_picow.uf2 artifacts/remapper_picow.uf2
-      - name: Verify artifact
+          mv build-picow/remapper_picow_ble.uf2 artifacts/remapper_picow_ble.uf2
+      - name: Verify artifacts
         run: |
           ls -la firmware/artifacts/
           test -f firmware/artifacts/remapper_picow.uf2
+          test -f firmware/artifacts/remapper_picow_ble.uf2
       - uses: actions/upload-artifact@v4
         with:
           name: remapper_picow-uf2
-          path: firmware/artifacts/remapper_picow.uf2
+          path: firmware/artifacts/

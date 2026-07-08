@@ -283,4 +283,21 @@ if(PICO_BOARD STREQUAL "pico_w")
     pico_enable_stdio_usb(remapper_picow 1)
     pico_enable_stdio_uart(remapper_picow 0)
     pico_add_extra_outputs(remapper_picow)
+
+    # BLE HID-over-GATT host (for BLE remotes like the G20s)
+    add_executable(remapper_picow_ble
+        src/ble/remapper_picow_ble.cc
+        src/ble/ble_host.c
+    )
+    target_include_directories(remapper_picow_ble PRIVATE src/ble)
+    target_link_libraries(remapper_picow_ble
+        pico_stdlib
+        pico_cyw43_arch_none
+        pico_btstack_cyw43
+        pico_btstack_ble
+    )
+    pico_btstack_make_gatt_header(remapper_picow_ble PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src/ble/ble_gatt.gatt)
+    pico_enable_stdio_usb(remapper_picow_ble 1)
+    pico_enable_stdio_uart(remapper_picow_ble 0)
+    pico_add_extra_outputs(remapper_picow_ble)
 endif()

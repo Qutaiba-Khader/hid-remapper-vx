@@ -8,8 +8,7 @@
 
   const COMBO_LAYOUTS = [
     { id: "wire", label: "Wire" },
-    { id: "inline", label: "Inline" },
-    { id: "stacked", label: "Stacked" },
+    // Inline / Stacked layouts removed per owner — Wire is the only combo layout.
   ];
 
   function findMap(id) { return APP.mappings.find((m) => m.id === +id); }
@@ -279,7 +278,7 @@
       `<button class="${APP.comboLayout === l.id ? "on" : ""}" data-layout="${l.id}">${l.label}</button>`
     ).join("");
 
-    const isWire = APP.comboLayout === "wire";
+    const isWire = true; // Wire is the only combo layout (Inline/Stacked removed)
     const emptyState = `<div class="empty-state">
           <div class="es-glyph">${ICON.chip}</div>
           <h4>No mappings yet</h4>
@@ -322,12 +321,6 @@
         <div>
           <div class="panel-title">Mappings</div>
           <div class="panel-sub">${isWire ? "Each input button lives in one cell. The wire forks into a separate path for every behavior — alone, or as a combo." : "Map any input key, button or axis to an output. Press keys together with combos."}</div>
-        </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span class="hint" style="font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase">Combo layout</span>
-            <div class="seg-ctrl" id="layoutSeg">${layoutSeg}</div>
-          </div>
         </div>
       </div>
       <div class="panel-body">

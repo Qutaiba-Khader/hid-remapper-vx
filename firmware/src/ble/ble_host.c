@@ -55,6 +55,7 @@
 #include "btstack_config.h"
 #include "btstack.h"
 #include "pico/cyw43_arch.h"
+#include "pico/stdlib.h"
 #include "ble_host.h"
 
 // ble_gatt.gatt contains the declaration of the provided GATT Services + Characteristics
@@ -472,23 +473,29 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 void ble_host_init(void){
 
     if (cyw43_arch_init()) { printf("cyw43_arch_init failed\n"); return; }
+    printf("init: cyw43 ok\n"); sleep_ms(60);
 
     /* LISTING_START(HogBootHostSetup): HID-over-GATT Host Setup */
 
     l2cap_init();
+    printf("init: l2cap\n"); sleep_ms(60);
 
     // setup SM: Display only
     sm_init();
     sm_set_io_capabilities(IO_CAPABILITY_DISPLAY_ONLY);
     sm_set_authentication_requirements(SM_AUTHREQ_SECURE_CONNECTION | SM_AUTHREQ_BONDING);
+    printf("init: sm\n"); sleep_ms(60);
 
     //
     gatt_client_init();
+    printf("init: gatt_client\n"); sleep_ms(60);
 
     // setup ATT server - only needed if LE Peripheral does ATT queries on its own, e.g. Android and iOS
     att_server_init(profile_data, NULL, NULL);
+    printf("init: att_server\n"); sleep_ms(60);
 
     hids_client_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
+    printf("init: hids_client\n"); sleep_ms(60);
 
     // register for events from HCI
     hci_event_callback_registration.callback = &packet_handler;
@@ -498,6 +505,7 @@ void ble_host_init(void){
     sm_event_callback_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&sm_event_callback_registration);
     sm_set_authentication_requirements( SM_AUTHREQ_BONDING);
+    printf("init: handlers\n"); sleep_ms(60);
 
     /* LISTING_END */
 
@@ -510,9 +518,11 @@ void ble_host_init(void){
     btstack_run_loop_set_timer_handler(&led_timer, &led_timer_handler);
     btstack_run_loop_set_timer(&led_timer, 100);
     btstack_run_loop_add_timer(&led_timer);
+    printf("init: led timer\n"); sleep_ms(60);
 
     // Turn on the device
     hci_power_control(HCI_POWER_ON);
+    printf("init: hci_power_on -> entering run loop\n"); sleep_ms(60);
 }
 
 void ble_host_run(void) {

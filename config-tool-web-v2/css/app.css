@@ -1,0 +1,365 @@
+/* ============================================================
+   HID Remapper VX — Visual System
+   Deep navy + purple. Premium hardware-tool feel.
+   Display: Space Grotesk · UI: IBM Plex Sans · Code: JetBrains Mono
+   RULE: text is always white / near-white. Never grey body text.
+   RULE: every button has a visible border + background.
+   ============================================================ */
+
+:root {
+  /* surfaces */
+  --bg: #0f1018;
+  --bg-deep: #0a0a12;
+  --panel: #16213e;
+  --panel-2: #1a2747;
+  --hover: #1e2a4a;
+  --raised: #20305a;
+  --border: #2d2d44;
+  --border-soft: #26314f;
+  --border-bright: #3a3f63;
+
+  /* text — all readable */
+  --text: #eef1fb;
+  --text-strong: #ffffff;
+  --label: #aab2d5; /* labels only — still bright */
+
+  /* accent */
+  --purple: #f59e2e;
+  --purple-2: #c4760f;
+  --purple-hi: #ffb74d;
+  --purple-glow: rgba(245, 158, 46, 0.42);
+
+  /* status */
+  --ok: #4ade80;
+  --ok-dim: rgba(74, 222, 128, 0.16);
+  --warn: #ffb74d;
+  --err: #f85149;
+  --err-bg: #2d1117;
+
+  --radius: 9px;
+  --radius-sm: 7px;
+  --radius-xs: 5px;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.28), 0 14px 34px rgba(0, 0, 0, 0.48);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 6px 12px rgba(0, 0, 0, 0.32), 0 18px 40px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  --font-ui: "Sora", system-ui, sans-serif;
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 520px at 78% -10%, rgba(245, 158, 46, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 8% 0%, rgba(245, 158, 46, 0.05), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+::selection { background: var(--purple-glow); color: #fff; }
+
+/* scrollbars */
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2a3358; border-radius: 20px; border: 3px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3a4673; background-clip: content-box; }
+
+.app-shell { max-width: 1240px; margin: 0 auto; padding: 0 22px 80px; }
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 22px;
+  margin: 0 -22px 0;
+  background: linear-gradient(180deg, rgba(20, 20, 42, 0.92), rgba(20, 20, 42, 0.72));
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-glyph {
+  width: 38px; height: 38px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--purple-hi), var(--purple-2));
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+.brand-glyph svg { width: 21px; height: 21px; }
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  color: var(--text-strong);
+  line-height: 1;
+  white-space: nowrap;
+}
+.brand-tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--label);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.topbar-spacer { flex: 1; }
+
+/* connection control cluster */
+.conn-actions { display: flex; align-items: center; gap: 9px; }
+
+/* ============================================================
+   BUTTONS — always border + background
+   ============================================================ */
+.btn-hx {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.08s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.btn-hx:hover { background: var(--hover); border-color: #46507e; }
+.btn-hx:active { transform: translateY(1px); }
+.btn-hx svg { width: 15px; height: 15px; flex: none; }
+
+.btn-primary {
+  background: var(--purple-hi);
+  border-color: var(--purple);
+  color: #20140a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 5px rgba(0, 0, 0, 0.32);
+}
+.btn-primary:hover { background: #ffc266; border-color: var(--purple); }
+.btn-primary svg { color: #20140a; }
+
+.btn-ghost { background: rgba(255, 255, 255, 0.04); border-color: var(--border); }
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+
+.btn-danger { color: #ffd7d4; background: var(--err-bg); border-color: #5a2326; }
+.btn-danger:hover { background: #3a1519; border-color: #7a2e32; }
+
+.btn-sm { padding: 6px 10px; font-size: 12px; }
+
+/* ============================================================
+   DEVICE INFO BAR
+   ============================================================ */
+.device-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 18px 0;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.device-bar .seg {
+  padding: 13px 18px;
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.device-bar .seg:last-child { border-right: none; }
+.seg-label { font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--label); font-family: var(--font-mono); }
+.seg-value { font-size: 14px; color: var(--text-strong); font-weight: 600; }
+.seg-value.mono { font-family: var(--font-mono); font-weight: 500; }
+
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 13px 6px 11px;
+  border-radius: 999px;
+  font-weight: 600; font-size: 12.5px;
+  border: 1px solid;
+}
+.conn-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.conn-pill.on { color: #c9ffe0; background: var(--ok-dim); border-color: rgba(74, 222, 128, 0.4); }
+.conn-pill.on .conn-dot { background: var(--ok); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); animation: pulse 2.2s infinite; }
+.conn-pill.off { color: #ffd7d4; background: var(--err-bg); border-color: #5a2326; }
+.conn-pill.off .conn-dot { background: var(--err); }
+.conn-pill.connecting { color: #ffe6bf; background: rgba(255, 183, 77, 0.14); border-color: rgba(255, 183, 77, 0.4); }
+.conn-pill.connecting .conn-dot { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55); } 70% { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); } 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } }
+
+.device-glyph { width: 30px; height: 30px; border-radius: 8px; background: var(--bg-deep); border: 1px solid var(--border-bright); display: grid; place-items: center; }
+.device-glyph svg { width: 17px; height: 17px; color: var(--purple-hi); }
+
+/* ============================================================
+   CONFIG HEADER — editable configuration title
+   ============================================================ */
+.config-header { display: flex; align-items: flex-end; gap: 16px; margin: 22px 0 4px; }
+.ch-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.ch-kicker {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--purple-hi); font-weight: 600;
+}
+.config-title-input {
+  font-family: var(--font-display); font-weight: 700; font-size: 27px; letter-spacing: 0.1px;
+  color: var(--text-strong); line-height: 1.1;
+  background: transparent; border: none;
+  border-bottom: 2px solid transparent;
+  padding: 2px 8px 5px 0; margin: 0; width: 100%;
+  transition: border-color 0.15s, background 0.15s;
+}
+.config-title-input::placeholder { color: var(--label); opacity: 0.7; }
+.config-title-input:hover { border-bottom-color: var(--border-bright); }
+.config-title-input:focus { outline: none; border-bottom-color: var(--purple-hi); }
+
+/* editable device name in the device bar */
+.device-name-input {
+  font-family: var(--font-ui); font-weight: 600; font-size: 14px; color: var(--text-strong);
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  padding: 3px 7px; margin: -3px -7px; width: 188px; max-width: 188px;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.device-name-input::placeholder { color: var(--label); opacity: 0.7; }
+.device-name-input:hover { background: var(--bg-deep); border-color: var(--border-bright); }
+.device-name-input:focus { outline: none; background: var(--bg-deep); border-color: var(--purple-hi); box-shadow: 0 0 0 3px var(--purple-glow); }
+
+/* ============================================================
+   TABS
+   ============================================================ */
+.tabs {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin: 0 0 20px;
+  border-bottom: 1.5px solid var(--border);
+}
+.tab {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--label);
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  border-radius: 8px 8px 0 0;
+  padding: 11px 16px 12px;
+  margin-bottom: -1.5px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tab:hover { background: var(--hover); color: var(--text-strong); }
+.tab.active {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(245, 158, 46, 0.16), rgba(245, 158, 46, 0.02));
+  border-bottom-color: var(--purple-hi);
+}
+.tab svg { width: 15px; height: 15px; opacity: 0.75; }
+.tab.active svg { opacity: 1; color: var(--purple-hi); }
+.tab .tab-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+.tab.active .tab-count { background: var(--purple-hi); color: #20140a; }
+
+.tab-advanced { position: relative; }
+.adv-menu {
+  position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--panel); border: 1px solid var(--border-bright);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  padding: 6px; min-width: 180px; z-index: 40; display: none;
+}
+.adv-menu.open { display: block; }
+.adv-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: var(--radius-xs); cursor: pointer; font-weight: 600; color: var(--text); }
+.adv-item:hover { background: var(--hover); }
+.adv-item svg { width: 15px; height: 15px; color: var(--purple-hi); }
+.adv-item.locked-note { font-size: 11px; color: var(--label); font-weight: 500; cursor: default; pointer-events: none; padding-top: 4px; }
+
+/* ============================================================
+   PANEL / SECTION
+   ============================================================ */
+.panel {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.panel-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.panel-title { font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--text-strong); }
+.panel-sub { font-size: 12.5px; color: var(--label); }
+.panel-body { padding: 14px 14px 16px; }
+
+.toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+/* segmented control (combo layout switch etc) */
+.seg-ctrl { display: inline-flex; background: var(--bg-deep); border: 1px solid var(--border-bright); border-radius: 999px; padding: 3px; gap: 3px; }
+.seg-ctrl button { font-family: var(--font-ui); font-weight: 600; font-size: 12px; color: var(--text); background: transparent; border: none; border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+.seg-ctrl button.on { background: linear-gradient(160deg, var(--purple-hi), var(--purple-2)); color: #fff; box-shadow: 0 3px 10px var(--purple-glow); }
+
+.hint { font-size: 12.5px; color: var(--label); }
+.section-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--purple-hi); font-weight: 600; }
+
+/* ============================================================
+   MONITOR TABLE — zebra striping
+   ============================================================ */
+#monBody tr:nth-child(odd) { background: rgba(124, 92, 255, 0.08); }
+#monBody tr:nth-child(even) { background: rgba(74, 222, 128, 0.06); }
+#monBody tr:hover { background: var(--hover); }
+
+/* ============================================================
+   RESPONSIVE — shell, topbar, tabs, config header on phones
+   ============================================================ */
+@media (max-width: 920px) {
+  .app-shell { padding: 0 12px 64px; }
+  .topbar {
+    padding: 12px 14px; margin: 0 -12px; gap: 11px; flex-wrap: wrap;
+  }
+  .topbar-spacer { display: none; }
+  .conn-actions { order: 3; width: 100%; flex-wrap: wrap; }
+  .conn-actions .btn-hx { flex: 1 1 auto; justify-content: center; }
+  .config-header { margin: 18px 0 4px; }
+  .config-title-input { font-size: 22px; }
+  .tabs {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { height: 0; }
+  .tab { flex: 0 0 auto; white-space: nowrap; padding: 11px 13px 12px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .modal-scrim { padding: 20px 10px; }
+  .picker { max-height: calc(100vh - 40px); }
+}
+@media (max-width: 560px) {
+  .brand-tag { display: none; }
+  .preset-grid, .example-grid { grid-template-columns: 1fr; }
+  .conn-actions .btn-hx span { font-size: 12px; }
+}

@@ -31,6 +31,11 @@
   };
   const HEX_TINT = Object.fromEntries(Object.entries(TINT_HEX).map(([k, v]) => [v.toLowerCase(), k]));
 
+  // coerce a value to a non-negative int; the mock stores some device-enum fields as display
+  // strings (e.g. settings.emulatedDevice = "Mouse + Keyboard") — those become 0 until Phase 3
+  // wires the Settings string<->enum mapping. Real numeric values pass through unchanged.
+  const toInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+
   const isHex = (s) => typeof s === "string" && /^0x[0-9a-fA-F]+$/.test(s);
   const normHex = (s) => {
     // normalize a usage to lowercase 0x + 8 hex digits (page<<16|id)
@@ -135,10 +140,10 @@
       unmapped_passthrough_layers: boolLayersToIndices(s.passthrough || []),
       partial_scroll_timeout: (s.scrollTimeout == null ? 1000 : s.scrollTimeout) * 1000, // ms -> µs
       tap_hold_threshold: (s.tapHold == null ? 200 : s.tapHold) * 1000, // ms -> µs
-      interval_override: s.interval || 0,
-      our_descriptor_number: s.emulatedDevice || 0,
-      gpio_debounce_time_ms: s.gpioDebounce == null ? 5 : s.gpioDebounce,
-      macro_entry_duration: s.macroEntryDuration || 10,
+      interval_override: toInt(s.interval),
+      our_descriptor_number: toInt(s.emulatedDevice),
+      gpio_debounce_time_ms: s.gpioDebounce == null ? 5 : toInt(s.gpioDebounce),
+      macro_entry_duration: toInt(s.macroEntryDuration) || 10,
     };
     // additive, web-only: combos + per-single enabled flags (so JSON export round-trips disabled state)
     if (!opts.forDevice) {

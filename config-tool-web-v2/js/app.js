@@ -152,22 +152,72 @@ function wireShell() {
   if (dn) dn.addEventListener("input", () => { APP.device.name = dn.value; });
 }
 
-function handleConn(act) {
+// emulated-output profiles, indexed by our_descriptor_number (config.cc order)
+const PROFILE_NAMES = [
+  "Mouse + Keyboard", "Absolute Mouse + Keyboard", "Nintendo Switch",
+  "PS4 arcade stick", "Google Stadia", "XAC / Flex",
+  "Corsair K55 RGB", "Logitech G213", "Xbox controller",
+];
+
+// Fold a device `config` (from device.js) back into the shared APP object in place.
+// APP is a const reference held by every module, so we mutate rather than reassign.
+function applyDeviceConfig(config) {
+  const next = window.HRX_TRANSLATE.configToApp(config, APP, window.HRX_STATE.uid);
+  Object.assign(APP, next);
+  APP.device.profile = PROFILE_NAMES[config.our_descriptor_number] || ("Profile " + (config.our_descriptor_number || 0));
+}
+
+async function handleConn(act) {
+  const dev = window.HRX_DEVICE;
   if (act === "connect") {
-    APP.connection = "connecting";
-    render();
-    setTimeout(() => { APP.connection = "connected"; render(); toast("Device connected"); }, 1100);
+    if (!navigator.hid) { toast("WebHID needs desktop Chrome or Edge"); return; }
+    APP.connection = "connecting"; render();
+    try {
+      const info = await dev.connect();
+      if (!info) { APP.connection = "disconnected"; render(); toast("No device selected"); return; }
+      APP.device.name = info.name;
+      APP.device.vidpid = info.vidpid;
+      APP.device.firmware = info.firmware;
+      if (!APP.device.profile) APP.device.profile = "—";
+      APP.connection = "connected"; render();
+      toast("Connected — " + info.name);
+    } catch (e) {
+      APP.connection = "disconnected"; render();
+      toast(String((e && e.message) || e));
+    }
   } else if (act === "disconnect") {
+    try { await dev.disconnect(); } catch (e) {}
     APP.connection = "disconnected"; render(); toast("Device disconnected");
-  } else if (act === "save") {
-    toast("Configuration saved to device");
   } else if (act === "load") {
-    toast("Configuration loaded from device");
+    if (!dev.isConnected()) { toast("Connect a device first"); return; }
+    try {
+      const config = await dev.loadFromDevice();
+      applyDeviceConfig(config);
+      render();
+      toast("Loaded " + ((config.mappings && config.mappings.length) || 0) + " mappings from device");
+    } catch (e) { toast("Load failed: " + String((e && e.message) || e)); }
+  } else if (act === "save") {
+    if (!dev.isConnected()) { toast("Connect a device first"); return; }
+    try {
+      const combos = APP.mappings.filter((m) => (m.inputs || []).length > 1).length;
+      const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });
+      const res = await dev.saveToDevice(config);
+      if (res && res.ok) {
+        const n = (config.mappings && config.mappings.length) || 0;
+        toast(combos
+          ? ("Saved " + n + " mappings — " + combos + " combo(s) kept in config, not sent (firmware has no combo support)")
+          : ("Saved " + n + " mappings to device"));
+      } else {
+        toast("Save failed: " + ((res && res.error) || "unknown"));
+      }
+    } catch (e) { toast("Save failed: " + String((e && e.message) || e)); }
   }
 }
 
 function boot() {
-  APP.connection = "connected"; // start connected so the prototype is immediately explorable
+  // Start disconnected (honest): the sample mappings still render so the tool is
+  // fully explorable/editable offline; "Open device" runs real WebHID.
+  APP.connection = "disconnected";
   render();
 }
 // Fire immediately if the DOM is already parsed (e.g. when scripts are injected

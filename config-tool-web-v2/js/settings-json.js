@@ -40,71 +40,15 @@
     quirks: [],
   };
 
-  /* ---- APP  ->  device JSON ---- */
-  function passLayers() {
-    const a = [];
-    (APP.settings.passthrough || []).forEach((on, i) => { if (on) a.push(i); });
-    return a;
-  }
-  function mappingToEntry(m) {
-    const layers = [];
-    (m.layers || []).forEach((on, i) => { if (on) layers.push(i); });
-    return {
-      target_usage: m.output,
-      source_usage: (m.inputs && m.inputs[0]) || m.output,
-      scaling: Math.round((m.scale != null ? m.scale : 1) * 1000),
-      layers: layers.length ? layers : [0],
-      sticky: !!m.sticky, tap: !!m.tap, hold: !!m.hold,
-      source_port: 0, target_port: 0,
-    };
-  }
+  /* ---- APP <-> device JSON — delegated to translate.js (single source of truth).
+     configToJson exports the FULL config incl. additive combos[]/disabled_singles so
+     nothing is lost; applyJson folds a parsed config back into APP in place. ---- */
   function configToJson() {
-    const obj = {
-      version: 18,
-      unmapped_passthrough_layers: passLayers(),
-      partial_scroll_timeout: (APP.settings.scrollTimeout || 0) * 1000,
-      tap_hold_threshold: (APP.settings.tapHold || 0) * 1000,
-      gpio_debounce_time_ms: 5,
-      interval_override: APP.settings.interval || 0,
-      our_descriptor_number: 0,
-      ignore_auth_dev_inputs: false,
-      macro_entry_duration: 1,
-      gpio_output_mode: 0,
-      input_labels: 0,
-      normalize_gamepad_inputs: true,
-      mappings: APP.mappings.filter((m) => m.enabled !== false).map(mappingToEntry),
-      macros: Array.from({ length: 32 }, () => []),
-      expressions: (APP.expressions || []).slice(0, 8),
-      quirks: [],
-    };
-    while (obj.expressions.length < 8) obj.expressions.push("");
-    return JSON.stringify(obj, null, 4);
+    return JSON.stringify(window.HRX_TRANSLATE.appToConfig(APP), null, 4);
   }
-
-  /* ---- device JSON  ->  APP (best effort) ---- */
   function applyJson(obj) {
-    const s = APP.settings;
-    if (typeof obj.partial_scroll_timeout === "number") s.scrollTimeout = Math.round(obj.partial_scroll_timeout / 1000);
-    if (typeof obj.tap_hold_threshold === "number") s.tapHold = Math.round(obj.tap_hold_threshold / 1000);
-    if (typeof obj.interval_override === "number") s.interval = obj.interval_override;
-    if (Array.isArray(obj.unmapped_passthrough_layers)) {
-      s.passthrough = [0, 1, 2, 3].map((i) => obj.unmapped_passthrough_layers.includes(i));
-    }
-    if (Array.isArray(obj.expressions)) {
-      APP.expressions = [];
-      for (let i = 0; i < 8; i++) APP.expressions.push(typeof obj.expressions[i] === "string" ? obj.expressions[i] : "");
-    }
-    if (Array.isArray(obj.mappings)) {
-      APP.mappings = obj.mappings.map((e) => {
-        const layers = [false, false, false, false];
-        (Array.isArray(e.layers) ? e.layers : [0]).forEach((i) => { if (i >= 0 && i < 4) layers[i] = true; });
-        if (!layers.some(Boolean)) layers[0] = true;
-        return mk([e.source_usage || e.target_usage || "0x00000000"], e.target_usage || "0x00000000", {
-          scale: typeof e.scaling === "number" ? e.scaling / 1000 : 1,
-          layers, sticky: !!e.sticky, tap: !!e.tap, hold: !!e.hold, enabled: true,
-        });
-      });
-    }
+    const next = window.HRX_TRANSLATE.configToApp(obj, APP, window.HRX_STATE.uid);
+    Object.assign(APP, next);
   }
 
   /* ---- modal ---- */
@@ -215,4 +159,5 @@
   }
 
   window.openConfigJson = open;
+  window.HRX_JSON = { configToJson, applyJson }; // reused by the Actions tab (export/import file)
 })();

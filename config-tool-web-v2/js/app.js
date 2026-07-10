@@ -152,12 +152,8 @@ function wireShell() {
   if (dn) dn.addEventListener("input", () => { APP.device.name = dn.value; });
 }
 
-// emulated-output profiles, indexed by our_descriptor_number (config.cc order)
-const PROFILE_NAMES = [
-  "Mouse + Keyboard", "Absolute Mouse + Keyboard", "Nintendo Switch",
-  "PS4 arcade stick", "Google Stadia", "XAC / Flex",
-  "Corsair K55 RGB", "Logitech G213", "Xbox controller",
-];
+// emulated-output profiles, indexed by our_descriptor_number (shared with Settings)
+const PROFILE_NAMES = window.HRX_STATE.PROFILES;
 
 // Fold a device `config` (from device.js) back into the shared APP object in place.
 // APP is a const reference held by every module, so we mutate rather than reassign.

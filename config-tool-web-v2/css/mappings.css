@@ -208,9 +208,11 @@
   letter-spacing: 0.4px; text-transform: uppercase;
   color: var(--label); width: 36px; flex: none; text-align: right;
 }
-.chk-row { display: inline-flex; gap: 4px; }
+.chk-row { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+/* 8 layer chips wrap to two rows of 4 inside the narrow flags column */
+.flag-line .chk-row:not(.seg) { max-width: 108px; }
 .chk-row.seg {
-  gap: 0; background: var(--bg-deep);
+  gap: 0; background: var(--bg-deep); flex-wrap: nowrap;
   border: 1px solid var(--border-bright); border-radius: 7px; overflow: hidden;
 }
 .chk-row.seg .chk { border: none; border-right: 1px solid var(--border-bright); border-radius: 0; width: 28px; }

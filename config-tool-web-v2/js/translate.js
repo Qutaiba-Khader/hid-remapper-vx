@@ -144,6 +144,11 @@
       our_descriptor_number: toInt(s.emulatedDevice),
       gpio_debounce_time_ms: s.gpioDebounce == null ? 5 : toInt(s.gpioDebounce),
       macro_entry_duration: toInt(s.macroEntryDuration) || 10,
+      // device flags + UI label set (defaults keep the exported JSON importable by the stock tool)
+      ignore_auth_dev_inputs: !!s.ignoreAuthDevInputs,
+      gpio_output_mode: s.gpioOutputMode ? 1 : 0,
+      input_labels: toInt(s.inputLabels),
+      normalize_gamepad_inputs: s.normalizeGamepad == null ? true : !!s.normalizeGamepad,
     };
     // additive, web-only: combos + per-single enabled flags (so JSON export round-trips disabled state)
     if (!opts.forDevice) {
@@ -165,12 +170,17 @@
     const mappings = singles.concat(combos);
 
     const settings = Object.assign({}, base.settings, {
-      passthrough: indicesToBoolLayers(config.unmapped_passthrough_layers, 4), // UI shows 4 for now
+      passthrough: indicesToBoolLayers(config.unmapped_passthrough_layers, NLAYERS),
       scrollTimeout: Math.round((config.partial_scroll_timeout == null ? 1000000 : config.partial_scroll_timeout) / 1000),
       tapHold: Math.round((config.tap_hold_threshold == null ? 200000 : config.tap_hold_threshold) / 1000),
       interval: config.interval_override || 0,
       emulatedDevice: config.our_descriptor_number || 0,
       comboWindow: config.combo_window || (base.settings && base.settings.comboWindow) || 50,
+      // device flags + label set (round-trip so a load->save preserves them)
+      ignoreAuthDevInputs: !!config.ignore_auth_dev_inputs,
+      gpioOutputMode: config.gpio_output_mode ? 1 : 0,
+      inputLabels: toInt(config.input_labels),
+      normalizeGamepad: config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs,
     });
 
     return Object.assign({}, base, {

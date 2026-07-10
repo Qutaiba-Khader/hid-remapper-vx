@@ -6,11 +6,11 @@
   const { $, $$, toast } = window.HRX;
 
   /* ---------------- SETTINGS ---------------- */
-  const EMU = ["Mouse + Keyboard", "Absolute Mouse", "Switch Gamepad", "PS4", "Stadia", "XAC", "Corsair K55", "Logitech G213", "Xbox Controller"];
+  const EMU = window.HRX_STATE.PROFILES; // index = our_descriptor_number
 
   window.renderSettings = function (container) {
     const s = APP.settings;
-    const emuOpts = EMU.map((e) => `<option ${e === s.emulatedDevice ? "selected" : ""}>${e}</option>`).join("");
+    const emuOpts = EMU.map((e, i) => `<option value="${i}" ${i === s.emulatedDevice ? "selected" : ""}>${e}</option>`).join("");
     const passToggles = s.passthrough.map((on, i) =>
       `<div class="toggle-row" style="margin-bottom:7px"><span class="toggle ${on ? "on" : ""}" data-pass="${i}"></span><span>Layer ${i}</span></div>`
     ).join("");
@@ -42,7 +42,7 @@
           <div class="sc-label">Tap-hold threshold</div>
           <div class="sc-help">Global timing that separates a tap from a hold.</div>
           <div style="display:flex;align-items:center;gap:9px">
-            <input class="input-hx" type="number" value="${s.tapHold}" style="width:90px;font-family:var(--font-mono)">
+            <input class="input-hx" type="number" min="0" value="${s.tapHold}" id="tapHold" style="width:90px;font-family:var(--font-mono)">
             <span class="hint">milliseconds</span>
           </div>
         </div>
@@ -51,7 +51,7 @@
           <div class="sc-label">Partial scroll timeout</div>
           <div class="sc-help">How long partial scroll accumulation persists.</div>
           <div style="display:flex;align-items:center;gap:9px">
-            <input class="input-hx" type="number" value="${s.scrollTimeout}" style="width:90px;font-family:var(--font-mono)">
+            <input class="input-hx" type="number" min="0" value="${s.scrollTimeout}" id="scrollTimeout" style="width:90px;font-family:var(--font-mono)">
             <span class="hint">milliseconds</span>
           </div>
         </div>
@@ -59,7 +59,7 @@
         <div class="setting-card">
           <div class="sc-label">Interval override</div>
           <div class="sc-help">USB polling interval. 0 keeps the device default.</div>
-          <input class="input-hx" type="number" value="${s.interval}" style="width:90px;font-family:var(--font-mono)">
+          <input class="input-hx" type="number" min="0" max="255" value="${s.interval}" id="interval" style="width:90px;font-family:var(--font-mono)">
         </div>
 
         <div class="setting-card">
@@ -70,12 +70,29 @@
       </div>
     </div></div>`;
 
-    $("#emu", container).addEventListener("change", (e) => { s.emulatedDevice = e.target.value; toast("Emulated device updated"); });
+    $("#emu", container).addEventListener("change", (e) => {
+      s.emulatedDevice = +e.target.value;
+      APP.device.profile = EMU[s.emulatedDevice] || ("Profile " + s.emulatedDevice);
+      toast("Emulated device: " + EMU[s.emulatedDevice]);
+    });
     $("#comboWin", container).addEventListener("change", (e) => {
       let v = Math.round(+e.target.value || 50);
       v = Math.max(10, Math.min(250, v));
       s.comboWindow = v; e.target.value = v;
     });
+    const numField = (id, key, min, max) => {
+      const el = $("#" + id, container);
+      if (!el) return;
+      el.addEventListener("change", (e) => {
+        let v = Math.round(+e.target.value || 0);
+        if (min != null) v = Math.max(min, v);
+        if (max != null) v = Math.min(max, v);
+        s[key] = v; e.target.value = v;
+      });
+    };
+    numField("tapHold", "tapHold", 0, null);
+    numField("scrollTimeout", "scrollTimeout", 0, null);
+    numField("interval", "interval", 0, 255);
     $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => { const i = +t.dataset.pass; s.passthrough[i] = !s.passthrough[i]; t.classList.toggle("on"); }));
     const ej = $("#editJson", container);
     if (ej && window.openConfigJson) ej.addEventListener("click", () => window.openConfigJson());
@@ -216,33 +233,37 @@
      (visual block builder + RPN code editor, two-way synced). */
 
   /* ---------------- ACTIONS ---------------- */
-  const FW_VERSION = "v15.2.0";
+  // Real release assets — filenames MUST match CI / the stock tool exactly (CLAUDE.md rule #4).
+  const FW_BASE = "https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/";
   const FW_BOARDS = [
-    { id: "pico", name: "Pico / Pico W", chip: "RP2040", led: false },
-    { id: "pico2", name: "Pico 2 / Pico 2 W", chip: "RP2350", led: false },
-    { id: "rp2040zero", name: "RP2040-Zero", chip: "RP2040", led: true },
-    { id: "rp2350zero", name: "RP2350-Zero", chip: "RP2350", led: true },
+    { name: "Pico / Pico W", chip: "RP2040", led: false, files: [
+      { file: "remapper.uf2", sub: "Single board" },
+      { file: "remapper_dual_a.uf2", sub: "Dual · device side" },
+      { file: "remapper_dual_b.uf2", sub: "Dual · host side" },
+    ] },
+    { name: "Pico 2 / Pico 2 W", chip: "RP2350", led: false, files: [
+      { file: "remapper_pico2.uf2", sub: "Single board" },
+    ] },
+    { name: "RP2040-Zero", chip: "RP2040", led: true, files: [
+      { file: "remapper_rp2040_zero_led.uf2", sub: "Single · onboard RGB LED", led: true },
+      { file: "remapper_rp2040_zero_dual_a_led.uf2", sub: "Dual · device side · RGB LED", led: true },
+      { file: "remapper_rp2040_zero_dual_b.uf2", sub: "Dual · host side" },
+    ] },
+    { name: "RP2350-Zero", chip: "RP2350", led: true, files: [
+      { file: "remapper_pico2_led.uf2", sub: "Single · onboard RGB LED", led: true },
+    ] },
   ];
 
-  function fwVariantHtml(variant, sub, led) {
-    const dot = led ? `<span class="fw-led-dot" style="background:conic-gradient(#ff3b30,#ffe11a,#22c55e,#22d3ee,#3b82f6,#a855f7,#ff3b30)"></span>` : "";
-    return `<a class="fw-dl" href="#" data-fw="${variant}">
+  function fwFileHtml(f) {
+    const dot = f.led ? `<span class="fw-led-dot" style="background:conic-gradient(#ff3b30,#ffe11a,#22c55e,#22d3ee,#3b82f6,#a855f7,#ff3b30)"></span>` : "";
+    return `<a class="fw-dl" href="${FW_BASE}${f.file}" download rel="noopener">
       ${ICON.download}
-      <span><span class="fw-variant">${variant}</span>${dot}</span>
-      <span class="fw-sub">${sub}</span>
-      <span class="fw-meta">.uf2 · ${FW_VERSION}</span>
+      <span><span class="fw-variant">${f.sub}</span>${dot}</span>
+      <span class="fw-meta">${f.file}</span>
     </a>`;
   }
 
   function fwBoardHtml(b) {
-    const variants = [
-      fwVariantHtml("Single", "one board", false),
-      fwVariantHtml("Dual", "two-board build", false),
-    ];
-    if (b.led) {
-      variants.push(fwVariantHtml("Single · RGB LED", "onboard WS2812", true));
-      variants.push(fwVariantHtml("Dual · RGB LED", "onboard WS2812", true));
-    }
     return `<div class="fw-board">
       <div class="fw-board-head">
         <div class="fw-board-glyph">${ICON.chip}</div>
@@ -252,37 +273,88 @@
         </div>
         ${b.led ? `<span class="fw-led-tag">RGB LED</span>` : ""}
       </div>
-      <div class="fw-variants">${variants.join("")}</div>
+      <div class="fw-variants">${b.files.map(fwFileHtml).join("")}</div>
     </div>`;
   }
 
+  function downloadJson() {
+    const json = window.HRX_JSON.configToJson();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (APP.config.title || "hid-remapper-config").trim().replace(/[^\w.-]+/g, "_") + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Config exported");
+  }
+
+  function importJson() {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "application/json,.json";
+    inp.addEventListener("change", () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          window.HRX_JSON.applyJson(obj);
+          if (window.HRX.setTab) window.HRX.setTab("mappings");
+          toast("Imported " + ((obj.mappings && obj.mappings.length) || 0) + " mappings from " + file.name);
+        } catch (e) { toast("Import failed: " + ((e && e.message) || e)); }
+      };
+      reader.readAsText(file);
+    });
+    inp.click();
+  }
+
+  function deviceAction(kind) {
+    const dev = window.HRX_DEVICE;
+    if (!dev.isConnected()) { toast("Connect a device first"); return; }
+    if (kind === "flash") {
+      if (!confirm("Reboot the device into bootloader (BOOTSEL) mode? It will disconnect so you can drop a new .uf2.")) return;
+      dev.flashFirmware().then(() => toast("Device rebooting into bootloader…")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
+    } else if (kind === "flashb") {
+      if (!confirm("Flash the B-side (host) firmware to match this device?")) return;
+      dev.flashBSide().then(() => toast("Flashing B-side…")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
+    } else if (kind === "pair") {
+      dev.pairNewDevice().then(() => toast("Pairing mode enabled on device")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
+    }
+  }
+
   window.renderActions = function (container) {
-    const card = (icon, title, desc, btn, danger) => `
+    const card = (icon, title, desc, btn, danger, act) => `
       <div class="setting-card">
         <div style="display:flex;align-items:center;gap:11px;margin-bottom:9px">
           <div class="preset-icon" style="width:36px;height:36px;color:var(--purple-hi)">${icon}</div>
           <div class="sc-label" style="margin:0">${title}</div>
         </div>
         <div class="sc-help">${desc}</div>
-        <button class="btn-hx ${danger ? "btn-danger" : "btn-primary"} btn-sm" data-toast="${title}">${btn}</button>
+        <button class="btn-hx ${danger ? "btn-danger" : "btn-primary"} btn-sm" data-act="${act}">${btn}</button>
       </div>`;
 
     container.innerHTML = `
     <div class="panel"><div class="panel-body">
       <div class="settings-grid">
-        ${card(ICON.download, "Export config", "Download the full device configuration as a JSON file.", "Export JSON")}
-        ${card(ICON.file, "Import config", "Load a configuration from a JSON file on your computer.", "Import JSON")}
-        ${card(ICON.bolt, "Flash firmware", "Reboot into bootloader so you can drop a new .uf2 file.", "Enter bootloader", true)}
-        ${card(ICON.layers, "Flash B-side", "Flash the secondary firmware slot for dual-boot devices.", "Flash B-side", true)}
-        ${card(ICON.plug, "Pair / Forget device", "Manage Bluetooth pairing for wireless remapper models.", "Manage pairing")}
+        ${card(ICON.download, "Export config", "Download the full configuration (mappings, combos, expressions, settings) as a JSON file.", "Export JSON", false, "export")}
+        ${card(ICON.file, "Import config", "Load a configuration from a JSON file on your computer.", "Import JSON", false, "import")}
+        ${card(ICON.bolt, "Flash firmware", "Reboot into bootloader so you can drop a new .uf2 file.", "Enter bootloader", true, "flash")}
+        ${card(ICON.layers, "Flash B-side", "Flash the host-side firmware for two-board (dual) devices.", "Flash B-side", true, "flashb")}
+        ${card(ICON.plug, "Pair new device", "Put a Bluetooth remapper into pairing mode.", "Enable pairing", false, "pair")}
       </div>
-      <div class="qa-section-head" style="margin:26px 0 14px"><h3>Firmware downloads</h3><p>Latest ${FW_VERSION} .uf2 builds — grouped by board. Pick <b>single</b> or <b>dual</b>; RGB-LED builds drive the onboard WS2812.</p></div>
+      <div class="qa-section-head" style="margin:26px 0 14px"><h3>Firmware downloads</h3><p>Latest <code>.uf2</code> builds — grouped by board. Pick <b>single</b> or <b>dual</b> (device/host side); RGB-LED builds drive the onboard WS2812.</p></div>
       <div class="fw-grid">
         ${FW_BOARDS.map(fwBoardHtml).join("")}
       </div>
     </div></div>`;
 
-    $$('[data-toast]', container).forEach((b) => b.addEventListener("click", () => toast(b.dataset.toast)));
-    $$('[data-fw]', container).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); toast(`Downloading ${b.dataset.fw} — ${FW_VERSION}`); }));
+    $$('[data-act]', container).forEach((b) => b.addEventListener("click", () => {
+      const a = b.dataset.act;
+      if (a === "export") downloadJson();
+      else if (a === "import") importJson();
+      else deviceAction(a);
+    }));
+    // firmware links are real <a href> downloads — no JS handler needed.
   };
 })();

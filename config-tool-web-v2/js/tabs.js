@@ -98,18 +98,27 @@
     if (ej && window.openConfigJson) ej.addEventListener("click", () => window.openConfigJson());
   };
 
-  /* ---------------- MONITOR ---------------- */
-  const MON_SEED = [
-    ["0x00070052", "Cursor Up", 1, 0, 1],
-    ["0x000c0041", "Menu Select", 0, 0, 1],
-    ["0x000c00e9", "Volume Up", 0, 0, 1],
-    ["0x00010030", "Cursor X", 12, -34, 58],
-  ];
-  let monTimer = null;
+  /* ---------------- MONITOR (live input reports from the device) ---------------- */
+  const monData = new Map(); // `${usage}_${hub_port}` -> { usage, name, hub_port, last, min, max }
+  let monRegistered = false;
+
+  // fed by device.js -> HRX_DEVICE.onMonitor(cb); cb gets { usage, value, hub_port }
+  function monIngest(rec) {
+    const key = rec.usage + "_" + rec.hub_port;
+    let row = monData.get(key);
+    if (!row) {
+      const name = (window.HRX_USAGES && window.HRX_USAGES.usageName(rec.usage)) || rec.usage;
+      row = { usage: rec.usage, name, hub_port: rec.hub_port, last: rec.value, min: rec.value, max: rec.value };
+      monData.set(key, row);
+    }
+    row.last = rec.value;
+    if (rec.value < row.min) row.min = rec.value;
+    if (rec.value > row.max) row.max = rec.value;
+    if (APP.activeTab === "monitor") paintMon();
+  }
 
   window.renderMonitor = function (container) {
     if (APP.connection !== "connected") {
-      if (monTimer) { clearInterval(monTimer); monTimer = null; }
       container.innerHTML = `
       <div class="panel"><div class="panel-body">
         <div class="state-hero">
@@ -123,6 +132,10 @@
       if (mc && window.HRX.connect) mc.addEventListener("click", () => window.HRX.connect());
       return;
     }
+    // register once, then turn the live stream on while this tab is visible
+    if (!monRegistered && window.HRX_DEVICE) { window.HRX_DEVICE.onMonitor(monIngest); monRegistered = true; }
+    if (window.HRX_DEVICE) window.HRX_DEVICE.setMonitorEnabled(true).catch(() => {});
+
     container.innerHTML = `
     <div class="panel">
       <div class="panel-head">
@@ -141,17 +154,14 @@
       </div>
     </div>`;
     paintMon();
-    $("#monClear", container).addEventListener("click", () => { paintMon(true); toast("Monitor cleared"); });
-
-    if (monTimer) clearInterval(monTimer);
-    monTimer = setInterval(() => { if (APP.activeTab === "monitor") tickMon(); else { clearInterval(monTimer); monTimer = null; } }, 1200);
+    $("#monClear", container).addEventListener("click", () => { monData.clear(); paintMon(); toast("Monitor cleared"); });
   };
 
-  function paintMon(clear) {
+  function paintMon() {
     const body = $("#monBody");
     if (!body) return;
-    const rows = clear ? [] : MON_SEED;
-    body.innerHTML = rows.map((r) => rowMon(r)).join("") ||
+    const rows = Array.from(monData.values());
+    body.innerHTML = rows.map(rowMon).join("") ||
       `<tr><td colspan="6" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
     $$('#monBody [data-mkmap]').forEach((b) => b.addEventListener("click", () => {
       APP.mappings.push(window.HRX_STATE.mk(b.dataset.code, "0x00000000"));
@@ -159,23 +169,14 @@
     }));
   }
   function rowMon(r) {
-    const [code, name, last, min, max] = r;
     return `<tr>
-      <td style="padding:9px 12px;font-family:var(--font-mono);color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${code}</td>
-      <td style="padding:9px 12px;color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${name}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${last}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${min}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${max}</td>
-      <td style="padding:9px 12px;border-bottom:1px solid var(--border-soft)"><button class="icon-btn" data-mkmap="1" data-code="${code}" data-name="${name}" title="Create mapping">${ICON.plus}</button></td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.usage}</td>
+      <td style="padding:9px 12px;color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.name}</td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.last}</td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.min}</td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.max}</td>
+      <td style="padding:9px 12px;border-bottom:1px solid var(--border-soft)"><button class="icon-btn" data-mkmap="1" data-code="${r.usage}" data-name="${r.name}" title="Create mapping">${ICON.plus}</button></td>
     </tr>`;
-  }
-  function tickMon() {
-    // simulate a live value blip
-    const i = Math.floor(Math.random() * MON_SEED.length);
-    const r = MON_SEED[i];
-    r[2] = r[0].startsWith("0x0001") ? Math.floor(Math.random() * 90 - 40) : (Math.random() > 0.5 ? 1 : 0);
-    r[3] = Math.min(r[3], r[2]); r[4] = Math.max(r[4], r[2]);
-    paintMon();
   }
 
   /* ---------------- MACROS (32 slots, accordion) ---------------- */

@@ -137,7 +137,14 @@ function renderActiveTab() {
   }
 }
 
-function setTab(id) { APP.activeTab = id; render(); }
+function setTab(id) {
+  // turn the live monitor stream off when leaving the Monitor tab
+  if (APP.activeTab === "monitor" && id !== "monitor" && window.HRX_DEVICE && window.HRX_DEVICE.isConnected()) {
+    window.HRX_DEVICE.setMonitorEnabled(false).catch(() => {});
+  }
+  APP.activeTab = id;
+  render();
+}
 window.HRX.setTab = setTab;
 window.HRX.rerenderTab = () => { renderActiveTab(); };
 window.HRX.connect = () => handleConn("connect");

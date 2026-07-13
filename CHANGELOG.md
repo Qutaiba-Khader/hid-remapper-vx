@@ -1,5 +1,33 @@
 # Changelog
 
+## Web config tool v2 — the redesigned tool goes live (2026-07-13)
+
+`config-tool-web-v2/` is now a real, working tool (it was a static mock). Live at
+**https://qutaiba-khader.github.io/hid-remapper-vx/config-tool-web-v2/** — the original tool at
+`/config-tool-web/` is untouched and still works.
+
+- **Combos** (see below), a **live Monitor**, per-field **reset to firmware default** in Settings,
+  Import/Export JSON, the full firmware download grid (all 27 builds, with the release tag fetched
+  live), Flash / Flash B-side / Pair / **Forget all devices**.
+- **The tool now boots EMPTY.** Everything on screen comes from your device or a config you
+  imported — the design mock's fake config, fake macros and fake "example" presets (which added
+  *blank* mappings while claiming otherwise) are gone.
+- **Fixed: settings had drifted from the firmware's own defaults** — unmapped passthrough is
+  **all 8 layers** (was layer 0 only), scroll timeout **1000 ms** (was 100), interval **0** (was 1),
+  macro entry duration **1 ms** (was 10).
+- **Fixed: several ways to lose your config.** A save now always resumes the device even if it
+  fails midway (an unresumed device accepts no input and looks bricked); macros, expressions and
+  quirks survive a load→save; a config that did not come from the device needs confirmation before
+  it overwrites one; and an unfinished row (no output, or a combo key not picked yet) is never
+  written.
+- **Fixed: expression constants are ×1000 fixed point on the device.** `0.05 mul` was being written
+  as `0 mul` — multiplying the whole expression by zero.
+- **Fixed: every toast was invisible** (Bootstrap's `.toast:not(.show){display:none}` beat ours), so
+  failed saves and errors passed silently. Bootstrap is gone; it was never used.
+- **Still missing vs the original tool:** the **macro editor** and the **quirk editor**. Both are
+  view-only in v2 — the data round-trips untouched, but to *change* them use the original tool or
+  Settings → Edit config JSON.
+
 ## Native combos — r2026-07-13
 
 - **Combos: press several inputs together, fire one output.** New usage page **`0xFFFB`** is an **AND gate** — a target on that page fires only when *all* of its sources are active (every other target sums its sources, which is an OR). That one-line difference is the whole feature.

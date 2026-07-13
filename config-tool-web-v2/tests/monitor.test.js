@@ -195,3 +195,19 @@ test("Consume with a 0 window is warned about, not silently allowed", () => {
   assert.ok(/\.combo-warn/.test(readSrc("css/mappings.css")),
     "which must actually be styled, or it is invisible");
 });
+
+test("hub port 255 is HUB_PORT_NONE — it must never be shown as a port number", () => {
+  // The firmware sends 255 (HUB_PORT_NONE, remapper.cc:131) when the device is NOT behind a
+  // USB hub. It means "there is no port". Printing it raw put a meaningless "255" on every
+  // single row of a normal setup. v1 hides the badge for 0 and 255; v2 must too.
+  const t = readSrc("js/tabs.js");
+  assert.ok(/const HUB_PORT_NONE = 255/.test(t), "the sentinel must be named, not magic");
+  assert.ok(/function portLabel/.test(t) && /portLabel\(r\.hub_port\)/.test(t),
+    "the monitor row must render the port through portLabel, not print hub_port raw");
+  assert.ok(!/\$\{r\.hub_port \|\| 0\}/.test(t),
+    "the old raw render must be gone — it printed 255 on every row");
+
+  // and the firmware really does use 255 for 'no hub'
+  const cc = fs.readFileSync(path.join(__dirname, "..", "..", "firmware", "src", "remapper.cc"), "utf8");
+  assert.match(cc, /#define HUB_PORT_NONE 255/);
+});

@@ -228,7 +228,7 @@
     container.innerHTML = `
     <div class="panel">
       <div class="panel-head">
-        <div><div class="panel-title">Monitor</div><div class="panel-sub">Live HID activity from the connected device. Press buttons on your remote to see them here.</div></div>
+        <div><div class="panel-title">Monitor</div><div class="panel-sub">Live HID activity from the connected device. Press a button (or move the mouse) to see it here, then hit + to map it.</div></div>
         <button class="btn-hx btn-ghost btn-sm" id="monClear" style="margin-left:auto">Clear</button>
       </div>
       <div class="panel-body">
@@ -266,11 +266,20 @@
       window.HRX.setTab("mappings");
     }));
   }
+  /* The firmware sends HUB_PORT_NONE (255) when the device is NOT behind a USB hub — i.e.
+     "there is no port", not "port 255". Printing the raw number puts a meaningless 255 on
+     every row of a normal (non-hub) setup. v1 hides the badge for 0 and 255; do the same. */
+  const HUB_PORT_NONE = 255;
+  function portLabel(p) {
+    const n = Number(p);
+    return (!n || n === HUB_PORT_NONE) ? "—" : String(n);
+  }
+
   function rowMon(r) {
     return `<tr>
       <td style="padding:9px 12px;font-family:var(--font-mono);color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.usage}</td>
       <td style="padding:9px 12px;color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.name}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);color:#fff;border-bottom:1px solid var(--border-soft)">${r.hub_port || 0}</td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);color:#fff;border-bottom:1px solid var(--border-soft)">${portLabel(r.hub_port)}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.last}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.min}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.max}</td>

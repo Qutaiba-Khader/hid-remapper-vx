@@ -50,7 +50,7 @@ There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`
 
 A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/src/remapper.h` / `remapper.cc` / `main.cc` before claiming one is free):
 
-`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color). **Next free: `0xFFFB`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
+`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color) · `0xFFFB` COMBO (target = **AND** of its sources; on a member mapping `scaling` = timing window in ms and `flags` bit 3 = consume). **Next free: `0xFFFC`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
 
 ## Repo layout
 

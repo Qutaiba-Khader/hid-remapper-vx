@@ -1,5 +1,18 @@
 # Changelog
 
+## Native combos — r2026-07-13
+
+- **Combos: press several inputs together, fire one output.** New usage page **`0xFFFB`** is an **AND gate** — a target on that page fires only when *all* of its sources are active (every other target sums its sources, which is an OR). That one-line difference is the whole feature.
+- A combo persists as **ordinary mappings**, so nothing about the config format changes and **`CONFIG_VERSION` stays 18**:
+  - *members* — `key → 0xfffb00NN`, one per key in the combo,
+  - *trigger* — `0xfffb00NN → output`, carrying the usual scaling / sticky / tap / hold / layers.
+- **Per-combo timing window** (not one global setting): on a member mapping the unused `scaling` field carries the window in **milliseconds**; `0` = no timing check. All keys must go down within the window, after which the combo **latches** while they are held.
+- **Per-combo (and per-member) "consume"**: free `flags` **bit 3**. While the combo is held, a consumed key does **not** fire its own mappings — so `Vol+ & Vol- → Mute` sends *only* Mute. Turn it off and all three fire.
+- Because a combo is a real input-state slot, **sticky/tap/hold/scaling/layers work on it for free**, and it can be read from an expression (`0xfffb0001 input_state`).
+- Built by **default** (`option(COMBO_ENABLED ... ON)`); pass `-DCOMBO_ENABLED=OFF` to compile the combo engine out. **No `.uf2` filename changed** — every existing build simply gains combos. On firmware without combo support, combo mappings are inert (never corrupt).
+- Web tool (`config-tool-web-v2/`): combo rows compile to real device mappings and fold back on load; each combo row has its own window + Consume switch; Settings gains a Combos master on/off.
+- **Settings fixes** (they had drifted from the firmware's own defaults in `globals.cc`): unmapped passthrough now defaults to **all 8 layers** (was layer 0 only), partial scroll timeout **1000 ms** (was 100), interval override **0** (was 1), macro entry duration **1 ms** (was 10). Every setting now has a reset-to-default button.
+
 ## RP2040-Zero onboard RGB LED — r2026-07-06
 
 - New opt-in `RGB_LED_GRB` CMake option: onboard WS2812 (GP16) support for the **RP2040-Zero**, whose LED is standard **GRB** byte order (the RP2350-Zero is RGB). The 16 web-tool color presets are identical across boards; only the firmware's wire byte order differs, so a preset shows the same color on every board.

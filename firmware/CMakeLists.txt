@@ -27,6 +27,21 @@ if((PICO_BOARD STREQUAL "pico") OR (PICO_BOARD STREQUAL "pico2"))
 add_compile_definitions(GPIO_VALID_PINS_BASE=0b00011100011111111111111111111111)
 endif()
 
+# --- Native combos: usage page 0xFFFB is an AND gate -- a target on that page fires
+# only when ALL of its sources are active (every other target sums its sources, i.e.
+# ORs them). A combo persists as ordinary mappings, so it adds NO persisted config
+# field and CONFIG_VERSION stays 18.
+#
+# ON by default for VX builds: the shipped .uf2 filenames are unchanged (CLAUDE.md
+# rule #4) and every board gains combos. Pass -DCOMBO_ENABLED=OFF to compile the
+# combo engine out entirely and get upstream-identical behavior. Applied here, before
+# the targets, so it covers remapper / remapper_dual_a / remapper_serial (the three
+# that run the mapping engine; remapper_dual_b is a capture node and has no engine). ---
+option(COMBO_ENABLED "Native combo support (AND-gate usage page 0xFFFB)" ON)
+if(COMBO_ENABLED)
+    add_compile_definitions(COMBO_ENABLED)
+endif()
+
 
 add_executable(remapper
     src/main.cc

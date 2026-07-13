@@ -22,6 +22,9 @@
 const uint8_t MAPPING_FLAG_STICKY = 1 << 0;
 const uint8_t MAPPING_FLAG_TAP = 1 << 1;
 const uint8_t MAPPING_FLAG_HOLD = 1 << 2;
+// Only meaningful on a mapping whose TARGET is on the combo page: while the combo is
+// held, this source key is "consumed" and stops firing its own mappings. Bits 4-7 free.
+const uint8_t MAPPING_FLAG_COMBO_CONSUME = 1 << 3;
 
 const uint8_t V_RESOLUTION_BITMASK = (1 << 0);
 const uint8_t H_RESOLUTION_BITMASK = (1 << 2);
@@ -90,6 +93,12 @@ uint32_t used_state_slots = 0;
 
 std::unordered_map<uint32_t, int32_t> accumulated;  // usage -> relative movement, * 1000
 uint8_t layer_state_mask = 1;
+
+#ifdef COMBO_ENABLED
+#define NCOMBOS 16
+std::vector<combo_t> combos;               // index = combo id - 1
+uint8_t combo_consumed[MAX_INPUT_STATES];  // per-frame: this input slot is owned by an active combo
+#endif
 
 std::vector<int32_t*> relative_usages;  // input_state pointers
 
@@ -425,6 +434,11 @@ void set_mapping_from_config() {
     reverse_mapping.clear();
     reverse_mapping_macros.clear();
     reverse_mapping_layers.clear();
+#ifdef COMBO_ENABLED
+    combos.clear();
+    combos.resize(NCOMBOS);
+    memset(combo_consumed, 0, sizeof(combo_consumed));
+#endif
 #ifdef RGB_LED_ENABLED
     active_led_targets.clear();
 #endif
@@ -444,6 +458,11 @@ void set_mapping_from_config() {
         uint8_t orig_source_port = source_port;
         if (((mapping.source_usage & 0xFFFF0000) == EXPR_USAGE_PAGE) ||
             ((mapping.source_usage & 0xFFFF0000) == REGISTER_USAGE_PAGE) ||
+#ifdef COMBO_ENABLED
+            // a combo's state lives on port 0 (that's where its members write it), so a
+            // trigger mapping must read it from port 0 too
+            ((mapping.source_usage & 0xFFFF0000) == COMBO_USAGE_PAGE) ||
+#endif
             ((mapping.source_usage & 0xFFFF0000) == GPIO_USAGE_PAGE)) {
             source_port = 0;
         }
@@ -470,6 +489,34 @@ void set_mapping_from_config() {
             uint16_t pin = mapping.source_usage & 0xFFFF;
             gpio_in_mask_ |= 1 << pin;
         }
+
+#ifdef COMBO_ENABLED
+        // A mapping whose TARGET is on the combo page is a combo MEMBER. The combo fires
+        // only when every member is active (an AND), so members must NOT be pushed into
+        // reverse_mapping_map -- that would sum them, which is an OR.
+        if ((mapping.target_usage & 0xFFFF0000) == COMBO_USAGE_PAGE) {
+            uint16_t id = mapping.target_usage & 0xFFFF;
+            if ((id >= 1) && (id <= NCOMBOS) &&
+                assign_state_slot(mapping.source_usage, source_port, false) &&
+                assign_state_slot(mapping.target_usage, 0, false)) {
+                combo_t& combo = combos[id - 1];
+                combo.out_state = get_state_ptr(mapping.target_usage, 0);
+                // the window rides in the FIRST member's scaling, in ms; get_time() is µs
+                if (combo.members.empty()) {
+                    combo.window_us = (mapping.scaling > 0) ? ((uint32_t) mapping.scaling * 1000) : 0;
+                }
+                combo.members.push_back((combo_member_t){
+                    .input_state = get_state_ptr(mapping.source_usage, source_port),
+                    .layer_mask = layer_mask,
+                    .consume = (mapping.flags & MAPPING_FLAG_COMBO_CONSUME) != 0,
+                    .rise_at = 0,
+                });
+                // a key used in a combo counts as mapped, so unmapped-passthrough leaves it alone
+                mapped_on_layers[mapping.source_usage] |= layer_mask;
+            }
+            continue;
+        }
+#endif
 
         if (assign_state_slot(mapping.source_usage, source_port, false)) {
             reverse_mapping_map[((uint64_t) target_port << 32) | mapping.target_usage].push_back((map_source_t){
@@ -1128,6 +1175,71 @@ int32_t eval_expr(uint8_t expr, uint64_t now, bool auto_repeat) {
     return 0;
 }
 
+#ifdef COMBO_ENABLED
+// A combo is the AND of its members. Runs before the layer/macro/output loops so a combo
+// can drive a layer and so consumption suppresses the member keys' own mappings.
+// Writes 1/0 into each combo's own input-state slot -- which means sticky/tap/hold/scaling/
+// layers on the trigger mapping all work through the existing machinery, for free.
+static void evaluate_combos(uint64_t now) {
+    memset(combo_consumed, 0, sizeof(combo_consumed));
+
+    for (auto& combo : combos) {
+        if (combo.members.empty() || (combo.out_state == NULL)) {
+            continue;
+        }
+
+        bool all_down = true;
+        uint64_t first_rise = UINT64_MAX;
+        uint64_t last_rise = 0;
+
+        for (auto& member : combo.members) {
+            // remember when this member was last pressed
+            if ((*member.input_state != 0) && (*(member.input_state + PREV_STATE_OFFSET) == 0)) {
+                member.rise_at = now;
+            }
+            if ((*member.input_state == 0) || !(layer_state_mask & member.layer_mask)) {
+                all_down = false;
+                continue;
+            }
+            if (member.rise_at < first_rise) {
+                first_rise = member.rise_at;
+            }
+            if (member.rise_at > last_rise) {
+                last_rise = member.rise_at;
+            }
+        }
+
+        if (!all_down) {
+            combo.latched = false;
+            *combo.out_state = 0;
+            continue;
+        }
+
+        // Fire once every member went down within the window; then LATCH, so the combo stays
+        // active while the keys are held even after the window has passed.
+        if (!combo.latched) {
+            combo.latched = (combo.window_us == 0) || ((last_rise - first_rise) <= combo.window_us);
+        }
+
+        *combo.out_state = combo.latched ? 1 : 0;
+
+        if (combo.latched) {
+            for (auto const& member : combo.members) {
+                if (member.consume) {
+                    combo_consumed[member.input_state - input_state] = 1;
+                }
+            }
+        }
+    }
+}
+
+// true when this source's key is currently owned by an active combo that consumes it
+static inline bool is_consumed(const map_source_t& map_source) {
+    return (map_source.input_state != NULL) &&
+        combo_consumed[map_source.input_state - input_state];
+}
+#endif
+
 void process_mapping(bool auto_repeat) {
     if (suspended) {
         return;
@@ -1135,6 +1247,10 @@ void process_mapping(bool auto_repeat) {
 
     uint64_t now = get_time();
     frame_counter++;
+
+#ifdef COMBO_ENABLED
+    evaluate_combos(now);
+#endif
 
     for (auto& tap_hold : tap_hold_usages) {
         if ((*tap_hold.input_state != 0) && (*(tap_hold.input_state + PREV_STATE_OFFSET) == 0)) {
@@ -1173,6 +1289,11 @@ void process_mapping(bool auto_repeat) {
     for (auto const& rev_map : reverse_mapping_layers) {
         uint16_t i = rev_map.target & 0xFFFF;
         for (auto const& map_source : rev_map.sources) {
+#ifdef COMBO_ENABLED
+            if (is_consumed(map_source)) {
+                continue;
+            }
+#endif
             if (!map_source.sticky) {
                 if ((map_source.layer_mask & layer_state_mask) &&
                     (map_source.hold
@@ -1229,6 +1350,11 @@ void process_mapping(bool auto_repeat) {
             continue;
         }
         for (auto const& map_source : rev_map.sources) {
+#ifdef COMBO_ENABLED
+            if (is_consumed(map_source)) {
+                continue;
+            }
+#endif
             if ((layer_state_mask & map_source.layer_mask) &&
                 ((!map_source.tap && !map_source.hold && (*(map_source.input_state + PREV_STATE_OFFSET) == 0) && (*map_source.input_state != 0)) ||
                     (map_source.hold && map_source.tap_hold_state->hold && !map_source.tap_hold_state->prev_hold) ||
@@ -1260,6 +1386,11 @@ void process_mapping(bool auto_repeat) {
                     !(active_ports_mask & (1 << map_source.orig_source_port))) {
                     continue;
                 }
+#ifdef COMBO_ENABLED
+                if (is_consumed(map_source)) {
+                    continue;
+                }
+#endif
                 int32_t value = 0;
                 if (auto_repeat || map_source.is_relative) {
                     if (map_source.sticky) {
@@ -1293,6 +1424,11 @@ void process_mapping(bool auto_repeat) {
                     !(active_ports_mask & (1 << map_source.orig_source_port))) {
                     continue;
                 }
+#ifdef COMBO_ENABLED
+                if (is_consumed(map_source)) {
+                    continue;
+                }
+#endif
                 if (map_source.sticky) {
                     if (*map_source.sticky_state & map_source.layer_mask) {
                         value += 1 * map_source.scaling / 1000 - rev_map.default_value;

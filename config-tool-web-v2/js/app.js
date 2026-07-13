@@ -31,7 +31,6 @@ function renderTopbar() {
         <div class="brand-tag">Web Config</div>
       </div>
     </div>
-    <div class="topbar-spacer"></div>
     <div class="conn-actions" id="connActions"></div>
   </div>`;
 }
@@ -278,6 +277,17 @@ async function handleConn(act) {
       }
     } catch (e) { toast("Save failed: " + String((e && e.message) || e)); }
   }
+}
+
+// The device was physically unplugged. Say so instead of continuing to claim "Connected"
+// and then failing deep inside the protocol on the next save.
+if (window.HRX_DEVICE && window.HRX_DEVICE.onDisconnect) {
+  window.HRX_DEVICE.onDisconnect(() => {
+    APP.connection = "disconnected";
+    configSource = "json";  // what's on screen came from the device, but the device is gone now
+    render();
+    toast("Device unplugged — your config is still here. Reconnect to save it.");
+  });
 }
 
 function boot() {

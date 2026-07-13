@@ -190,6 +190,21 @@
     }
   }
 
+  // Fires when the device is physically unplugged. Without this the UI keeps claiming
+  // "Connected" and the next save throws deep inside the protocol instead of saying the
+  // obvious thing.
+  let disconnectCb = null;
+  function onDeviceDisconnected(event) {
+    if (!device || event.device !== device) return;
+    device = null;
+    deviceVersion = null;
+    if (disconnectCb) disconnectCb();
+  }
+  if (typeof navigator !== "undefined" && navigator.hid && navigator.hid.addEventListener) {
+    navigator.hid.addEventListener("disconnect", onDeviceDisconnected);
+  }
+  function onDisconnect(cb) { disconnectCb = cb; }
+
   async function connect() {
     if (busy) return null;
     busy = true;
@@ -437,7 +452,7 @@
     // lifecycle
     connect, disconnect, isConnected, getInfo,
     loadFromDevice, saveToDevice,
-    setMonitorEnabled, onMonitor,
+    setMonitorEnabled, onMonitor, onDisconnect,
     flashFirmware, flashBSide, pairNewDevice, clearBonds,
     // constants
     CONFIG_VERSION, HUB_PORT_NONE, PERSIST_CONFIG_SUCCESS, PERSIST_CONFIG_CONFIG_TOO_BIG,

@@ -81,6 +81,34 @@
   };
   const comboId = (u) => (parseInt(normHex(u), 16) >>> 0) & 0xffff;
 
+  /* ---- expression numbers are FIXED POINT on the device ----
+     The device stores an expression's numeric constants as integers scaled by 1000 (the firmware's
+     PUSH operand is ×1000 fixed point), while a human writes "0.05". v1 converts at the UI edge
+     (code.js: ui_to_json does round(x*1000), json_to_ui does parseInt(x)/1000).
+
+     v2 keeps APP.expressions in HUMAN units (that is what the editor reads and writes) and converts
+     here, at the config boundary — exactly like ms<->µs and scale<->scaling. Getting this wrong is
+     silent corruption: "0.05 mul" would be written to the device as "0 mul" (parseInt("0.05") === 0),
+     multiplying the whole expression by zero, and a device value of 50 would display as "50". */
+  // a NUMBER, not a usage: "0x00010030" also starts with a digit, so hex must be excluded or the
+  // usage itself gets rescaled to 0
+  const isNumTok = (t) => /^-?[0-9]/.test(t) && !/^-?0x/i.test(t);
+  const mapExprNums = (expr, fn) => String(expr || "")
+    .split(/(\s+)/)                       // keep the whitespace so formatting survives
+    .map((t) => (isNumTok(t) ? fn(t) : t))
+    .join("");
+
+  // human "0.05"  ->  device "50"
+  const exprToDevice = (expr) => mapExprNums(expr, (t) => {
+    const x = parseFloat(t);
+    return Number.isFinite(x) ? String(Math.round(x * 1000)) : t;
+  });
+  // device "50"  ->  human "0.05"
+  const exprToApp = (expr) => mapExprNums(expr, (t) => {
+    const n = parseInt(t, 10);
+    return Number.isFinite(n) ? String(n / 1000) : t;
+  });
+
   function boolLayersToIndices(layers) {
     const out = [];
     (layers || []).forEach((on, i) => { if (on) out.push(i); });
@@ -224,7 +252,7 @@
     const config = {
       version: CONFIG_VERSION,
       mappings,
-      expressions: (APP.expressions || []).slice(),
+      expressions: (APP.expressions || []).map(exprToDevice),   // human -> device fixed point
       macros: APP.macros ? APP.macros.slice() : Array.from({ length: 32 }, () => []),
       quirks: APP.quirks ? APP.quirks.slice() : [],
       // settings
@@ -320,7 +348,7 @@
 
     return Object.assign({}, base, {
       mappings,
-      expressions: (config.expressions || (base.expressions || [])).slice(),
+      expressions: (config.expressions || (base.expressions || [])).map(exprToApp), // device -> human
       macros: config.macros ? config.macros.slice() : (base.macros || Array.from({ length: 32 }, () => [])),
       // quirks MUST be carried back: saveToDevice() sends CLEAR_QUIRKS and then writes
       // config.quirks, so dropping them here would erase the device's quirks on the next save.
@@ -335,6 +363,7 @@
     normHex, boolLayersToIndices, indicesToBoolLayers,
     comboUsage, isComboUsage, comboId,
     appMappingToConfig, configMappingToApp, appComboToConfigMappings,
+    exprToDevice, exprToApp,
     appToConfig, configToApp,
   };
 

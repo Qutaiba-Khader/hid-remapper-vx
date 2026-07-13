@@ -86,7 +86,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 30;
-  display: flex;
+  /* 3 columns so the device buttons sit CENTRED on the page, not merely pushed into the
+     leftover space to the right of the brand (a flex spacer would shift them off-centre by
+     half the brand's width). The empty third column balances the brand. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 18px;
   padding: 16px 22px;
@@ -124,7 +128,7 @@ body {
 .topbar-spacer { flex: 1; }
 
 /* connection control cluster */
-.conn-actions { display: flex; align-items: center; gap: 9px; }
+.conn-actions { display: flex; align-items: center; gap: 9px; justify-self: center; }
 
 /* ============================================================
    BUTTONS — always border + background
@@ -341,10 +345,12 @@ body {
 @media (max-width: 920px) {
   .app-shell { padding: 0 12px 64px; }
   .topbar {
-    padding: 12px 14px; margin: 0 -12px; gap: 11px; flex-wrap: wrap;
+    /* on narrow screens stack: brand on top, the buttons full-width beneath it */
+    padding: 12px 14px; margin: 0 -12px; gap: 11px;
+    grid-template-columns: 1fr;
   }
   .topbar-spacer { display: none; }
-  .conn-actions { order: 3; width: 100%; flex-wrap: wrap; }
+  .conn-actions { width: 100%; flex-wrap: wrap; justify-self: stretch; }
   .conn-actions .btn-hx { flex: 1 1 auto; justify-content: center; }
   .config-header { margin: 18px 0 4px; }
   .config-title-input { font-size: 22px; }

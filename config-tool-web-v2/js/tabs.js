@@ -474,6 +474,10 @@
       dev.flashBSide().then(() => toast("Flashing B-side…")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
     } else if (kind === "pair") {
       dev.pairNewDevice().then(() => toast("Pairing mode enabled on device")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
+    } else if (kind === "bonds") {
+      // v1 parity ("Forget all devices"). clearBonds() existed but had no button.
+      if (!confirm("Forget ALL Bluetooth devices paired with this remapper? They will each have to be paired again.")) return;
+      dev.clearBonds().then(() => toast("All Bluetooth bonds cleared")).catch((e) => toast("Failed: " + ((e && e.message) || e)));
     }
   }
 
@@ -496,6 +500,7 @@
         ${card(ICON.bolt, "Flash firmware", "Reboot into bootloader so you can drop a new .uf2 file.", "Enter bootloader", true, "flash")}
         ${card(ICON.layers, "Flash B-side", "Flash the host-side firmware for two-board (dual) devices.", "Flash B-side", true, "flashb")}
         ${card(ICON.plug, "Pair new device", "Put a Bluetooth remapper into pairing mode.", "Enable pairing", false, "pair")}
+        ${card(ICON.x, "Forget all devices", "Clear every Bluetooth bond stored on the remapper. They must be paired again.", "Clear bonds", true, "bonds")}
       </div>
       <div class="qa-section-head" style="margin:26px 0 14px">
         <h3>Firmware downloads</h3>

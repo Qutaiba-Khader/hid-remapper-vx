@@ -85,8 +85,9 @@
     if (!state.onPort) return "";
     const cur = state.port || 0;
     const label = state.mode === "input" ? "Source port" : "Target port";
-    const opts = [[0, "0 — Any"], [1, "1"], [2, "2"], [3, "3"], [4, "4"]]
-      .map(([v, t]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${t}</option>`).join("");
+    // the port is a nibble on the wire (0-15), and v1 offers the full range — match it
+    const opts = Array.from({ length: 16 }, (_, v) =>
+      `<option value="${v}" ${v === cur ? "selected" : ""}>${v === 0 ? "0 — Any" : v}</option>`).join("");
     return `
       <div class="field">
         <label>${label}</label>

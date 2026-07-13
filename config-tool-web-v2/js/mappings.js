@@ -84,13 +84,20 @@
       </div>`;
   }
 
-  /* ---------- WIRE forked groups: same button = one cell, wire forks per behavior ---------- */
+  /* ---------- WIRE forked groups: same button = one cell, wire forks per behavior ----------
+     Rows that share an input button are drawn as one trunk with a branch per behaviour, and the
+     trunk's picker reassigns the input for EVERY row in the group. That is right for real keys —
+     but a row that has no input yet is 0x00000000, so two freshly-added rows used to land in the
+     SAME group purely because they shared the placeholder. Picking an input for one then silently
+     rewired the other. Unset rows therefore each get their own group. */
+  const UNSET = "0x00000000";
   function groupByFirstInput(list) {
     const groups = [];
     const idx = {};
     list.forEach((m) => {
-      const k = m.inputs[0];
-      if (idx[k] === undefined) { idx[k] = groups.length; groups.push({ key: k, members: [] }); }
+      const code = m.inputs[0];
+      const k = code === UNSET ? "unset-" + m.id : code;   // never merge unset rows together
+      if (idx[k] === undefined) { idx[k] = groups.length; groups.push({ key: k, code, members: [] }); }
       groups[idx[k]].members.push(m);
     });
     return groups;
@@ -138,6 +145,8 @@
         <div class="row-ctrls compact">
           <button class="icon-btn power ${m.enabled ? "" : "off"}" data-toggle="1" data-mid="${m.id}" title="${m.enabled ? "Disable this behavior" : "Enable this behavior"}">${ICON.power}</button>
           <button class="icon-btn drag bdrag" title="Drag to reorder">${ICON.grip}</button>
+          <button class="icon-btn" data-move="up" data-mid="${m.id}" title="Move up">${ICON.up}</button>
+          <button class="icon-btn" data-move="down" data-mid="${m.id}" title="Move down">${ICON.down}</button>
           <button class="icon-btn" data-clone="1" data-mid="${m.id}" title="Clone">${ICON.clone}</button>
           <button class="icon-btn del" data-del="1" data-mid="${m.id}" title="Delete">${ICON.x}</button>
         </div>
@@ -148,27 +157,30 @@
   }
 
   function groupHtml(group) {
-    const code = group.key;
-    const empty = !code || code === "0x00000000";
+    const code = group.code;                       // the real usage (group.key may be an unset sentinel)
+    const empty = !code || code === UNSET;
     const forked = group.members.length > 1 ? "forked" : "";
     const combos = group.members.filter((m) => m.inputs.length > 1).length;
     const meta = group.members.length > 1
       ? `<span class="trunk-meta">${group.members.length} ways${combos ? ` · ${combos} combo` : ""}</span>`
       : "";
+    // the exact rows this trunk owns — the picker must rewire ONLY these, never every row that
+    // happens to share the same code (which, for unset rows, would be all of them)
+    const mids = group.members.map((m) => m.id).join(",");
     return `
-      <div class="wire-group ${forked}" data-groupkey="${code}" draggable="true">
+      <div class="wire-group ${forked}" data-groupkey="${group.key}" draggable="true">
         <div class="wg-trunk">
-          <button class="usage-btn trunk-btn ${empty ? "empty" : ""}" style="--cat:${usageAccent(code)}" data-pickgroup="${code}" title="Change this input — applies to every behavior below">
+          <button class="usage-btn trunk-btn ${empty ? "empty" : ""}" style="--cat:${usageAccent(code)}" data-pickgroup="${code}" data-mids="${mids}" title="${empty ? "Pick the input for this mapping" : "Change this input — applies to every behavior below"}">
             <span class="grip-dots" title="Drag to reorder this button">${ICON.grip}</span>
             <span class="u-cat-dot"></span>
-            <span class="u-name">${usageName(code)}</span>
+            <span class="u-name">${empty ? "Pick an input…" : usageName(code)}</span>
             <span class="chev">${ICON.chevron}</span>
           </button>
           ${meta}
         </div>
         <div class="wg-branches">
           <div class="wg-rows">${group.members.map(branchHtml).join("")}</div>
-          <button class="wg-add" data-addbranch="${code}" title="Add another behavior for this button — pressed alone or as a combo">${ICON.plus}</button>
+          ${empty ? "" : `<button class="wg-add" data-addbranch="${code}" title="Add another behavior for this button — pressed alone or as a combo">${ICON.plus}</button>`}
         </div>
       </div>`;
   }
@@ -253,16 +265,20 @@
     // change a forked group's shared input — applies to all its behaviors
     $$('[data-pickgroup]', root).forEach((b) => b.addEventListener("click", () => {
       const oldCode = b.dataset.pickgroup;
-      const group = () => APP.mappings.filter((m) => m.inputs[0] === oldCode);
+      // Rewire ONLY the rows this trunk owns. Matching by usage code would also hit every other
+      // row with the same code — and every not-yet-configured row shares 0x00000000, so adding
+      // two blank mappings and picking an input for one used to silently set both.
+      const ids = (b.dataset.mids || "").split(",").filter(Boolean).map(Number);
+      const group = () => APP.mappings.filter((m) => ids.includes(m.id));
       const first = group()[0];
       window.openPicker({
         mode: "input",
-        current: oldCode,
-        // the whole group shares one input, so it shares one source port
+        current: oldCode === UNSET ? null : oldCode,
+        // the rows under one trunk share an input, so they share one source port
         port: (first && first.source_port) || 0,
         onPort: (p) => { group().forEach((m) => { m.source_port = p; }); },
         onSelect: (code) => {
-          APP.mappings.forEach((m) => { if (m.inputs[0] === oldCode) m.inputs[0] = code; });
+          group().forEach((m) => { m.inputs[0] = code; });
           refresh();
         },
       });

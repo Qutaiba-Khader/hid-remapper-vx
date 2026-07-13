@@ -136,12 +136,10 @@
   // ---- combo: one APP row -> N member mappings + 1 trigger mapping ----
   // The window rides in the members' `scaling` (ms; 0 = no timing check) and the
   // consume flag in `combo_consume` (device.js writes it to flags bit 3).
-  function appComboToConfigMappings(m, id, opts) {
-    opts = opts || {};
+  function appComboToConfigMappings(m, id) {
     const layers = boolLayersToIndices(m.layers);
     const raw = m.comboWindow == null ? DEFAULT_COMBO_WINDOW_MS : m.comboWindow;
-    // combos globally disabled -> no timing window (pure AND)
-    const windowMs = opts.combosEnabled === false ? 0 : Math.max(0, Math.min(5000, Math.round(raw) || 0));
+    const windowMs = Math.max(0, Math.min(5000, Math.round(raw) || 0));
     const consume = m.comboConsume !== false;
     const target = comboUsage(id);
 
@@ -191,11 +189,16 @@
     const mappings = [];
     let nextComboId = 1;
     let comboOverflow = 0;
+    let comboSkipped = 0;
     usable.forEach((m) => {
       if ((m.inputs || []).length > 1) {
-        if (!combosEnabled) return;        // combos switched off in Settings -> not sent at all
+        // The Combos master switch means "don't send combos to the DEVICE". It must NOT
+        // strip them from an exported JSON — that would delete the user's combo rows from
+        // their own config file, and would misalign disabled_rows (which has one entry per
+        // row) on re-import.
+        if (opts.forDevice && !combosEnabled) { comboSkipped++; return; }
         if (nextComboId > NCOMBOS) { comboOverflow++; return; }
-        mappings.push(...appComboToConfigMappings(m, nextComboId++, { combosEnabled }));
+        mappings.push(...appComboToConfigMappings(m, nextComboId++));
       } else {
         mappings.push(appMappingToConfig(m));
       }
@@ -226,7 +229,9 @@
       config.disabled_rows = rows.map((m) => m.enabled === false);
       config.combos_enabled = combosEnabled;
     }
-    if (comboOverflow) config.combo_overflow = comboOverflow; // caller may warn the user
+    // non-persisted hints for the caller (app.js warns the user); stripped from JSON exports
+    if (comboOverflow) config.combo_overflow = comboOverflow;
+    if (comboSkipped) config.combo_skipped = comboSkipped;
     return config;
   }
 
@@ -299,6 +304,9 @@
       mappings,
       expressions: (config.expressions || (base.expressions || [])).slice(),
       macros: config.macros ? config.macros.slice() : (base.macros || Array.from({ length: 32 }, () => [])),
+      // quirks MUST be carried back: saveToDevice() sends CLEAR_QUIRKS and then writes
+      // config.quirks, so dropping them here would erase the device's quirks on the next save.
+      quirks: config.quirks ? config.quirks.slice() : (base.quirks || []),
       settings,
     });
   }

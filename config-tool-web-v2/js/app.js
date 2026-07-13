@@ -230,14 +230,20 @@ async function handleConn(act) {
       return;
     }
     try {
-      const combos = APP.mappings.filter((m) => (m.inputs || []).length > 1).length;
       const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });
       const res = await dev.saveToDevice(config);
       if (res && res.ok) {
         const n = (config.mappings && config.mappings.length) || 0;
-        toast(combos
-          ? ("Saved " + n + " mappings — " + combos + " combo(s) kept in config, not sent (firmware has no combo support)")
-          : ("Saved " + n + " mappings to device"));
+        let msg = "Saved " + n + " mappings to device";
+        // never drop a combo silently — say so
+        if (config.combo_skipped) {
+          msg += " — " + config.combo_skipped + " combo(s) NOT sent (Combos are switched off in Settings)";
+        }
+        if (config.combo_overflow) {
+          msg += " — " + config.combo_overflow + " combo(s) NOT sent (the firmware holds at most " +
+            window.HRX_TRANSLATE.NCOMBOS + ")";
+        }
+        toast(msg);
       } else {
         toast("Save failed: " + ((res && res.error) || "unknown"));
       }

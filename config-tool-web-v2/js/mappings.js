@@ -42,6 +42,9 @@
   function comboOptsHtml(m) {
     const win = m.comboWindow == null ? 50 : m.comboWindow;
     const consume = m.comboConsume !== false;
+    // the Settings master switch means "don't send combos to the device" — say so on the row
+    // rather than dropping it silently at save time
+    const off = APP.settings && APP.settings.combosEnabled === false;
     return `
       <div class="combo-opts">
         <label class="combo-win" title="All keys must go down within this many milliseconds. 0 = no timing window.">
@@ -52,6 +55,7 @@
         </label>
         <span class="chk mode word ${consume ? "on" : ""}" data-cconsume="1" data-mid="${m.id}"
               title="Consume — while the combo is held, its keys do not fire their own mappings">Consume</span>
+        ${off ? `<span class="combo-off-tag" title="Combos are switched off in Settings — this row is kept in your config but is NOT sent to the device">Not sent — combos off</span>` : ""}
       </div>`;
   }
 

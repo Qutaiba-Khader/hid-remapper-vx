@@ -511,8 +511,13 @@ void set_mapping_from_config() {
                     .consume = (mapping.flags & MAPPING_FLAG_COMBO_CONSUME) != 0,
                     .rise_at = 0,
                 });
-                // a key used in a combo counts as mapped, so unmapped-passthrough leaves it alone
-                mapped_on_layers[mapping.source_usage] |= layer_mask;
+                // NOTE: deliberately do NOT touch mapped_on_layers here. Being part of a combo
+                // must not, on its own, stop a key from working when pressed alone -- otherwise
+                // (with unmapped passthrough on, which is the default) adding a combo would
+                // silently kill its member keys. Suppression is the job of the *consume* flag,
+                // which is dynamic: combo_consumed[] is set only while the combo is actually
+                // held, and the passthrough source uses this same input_state slot (port 0),
+                // so is_consumed() suppresses it exactly when it should.
             }
             continue;
         }

@@ -109,6 +109,9 @@ static uint8_t hid_descriptor_storage[500];
 static bd_addr_t target_addr;
 static bool target_addr_set = false;
 
+// the advertised name of the device we are connecting to, reported up to the config tool
+static char connected_name[32];
+
 static bool ble_has_target_addr(void){
     return target_addr_set;
 }
@@ -152,10 +155,46 @@ static btstack_timer_source_t connection_timer;
 
 // onboard LED status (Adapt E): solid = connected/ready, fast blink =
 // connecting/pairing, slow blink = scanning/idle.
+static void ble_clear_all_bonds(void);
+
+/* The config tool's "Pair new device" / "Clear bonds" buttons land on CORE 0 as config commands
+   12/13. BTstack may only be touched from core 1, so core 0 raises a flag in the bridge and we
+   pick it up here, inside BTstack's own run loop. Polled from the LED timer, which already ticks
+   every 100ms -- no extra timer, and a 100ms latency on a button press is invisible. */
+static void ble_handle_core0_requests(void){
+    uint32_t req = ble_bridge_take_requests();
+    if (req == 0) return;
+
+    if (req & BLE_REQ_CLEAR_BONDS){
+        printf("\n== CLEAR BONDS (from the config tool) ==\n");
+        ble_clear_all_bonds();
+    }
+    if (req & BLE_REQ_PAIR_NEW){
+        printf("\n== PAIR NEW DEVICE (from the config tool) ==\n");
+        // Forget the device we are on, so we stop reconnecting to it and go looking again.
+        if (target_addr_set) {
+            target_addr_set = false;   // a new pairing should not be pinned to the old address
+        }
+        ble_clear_all_bonds();
+    }
+
+    // Drop the link and start over. The disconnect handler restarts the scan; if we were not
+    // connected, start it here.
+    if (connection_handle != HCI_CON_HANDLE_INVALID){
+        app_state = W4_TIMEOUT_THEN_SCAN;
+        gap_disconnect(connection_handle);
+    } else {
+        hog_start_scan();
+    }
+}
+
 static btstack_timer_source_t led_timer;
 static void led_timer_handler(btstack_timer_source_t * ts){
     static uint32_t tick = 0;
     tick++;
+
+    ble_handle_core0_requests();
+
     int on;
     switch (app_state){
         case READY:
@@ -253,6 +292,32 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
 /* Kept for the clear_bonds() config command (still an empty stub on the Pico path). NOT called
    automatically any more -- see hog_discovery_timeout() for why unilaterally dropping our key
    behind the user's back is harmful. */
+/* Forget EVERY bond, plus the "last connected device" tag. This is what the config tool's
+   "Clear bonds" button does.
+   NOTE the warning the tool must show the user: this clears OUR side only. The remote still holds
+   ITS key, so it may think it already knows us -- accept the link, refuse to re-pair and refuse to
+   serve GATT. Re-pair the REMOTE too, or you get a half-bond deadlock. (We learned this the hard
+   way: it broke other, working firmware on the same remote.) */
+static void ble_clear_all_bonds(void){
+    int deleted = 0;
+    int max = le_device_db_max_count();
+    for (int i = 0; i < max; i++){
+        int addr_type = BD_ADDR_TYPE_UNKNOWN;
+        bd_addr_t addr;
+        sm_key_t irk;
+        le_device_db_info(i, &addr_type, addr, irk);
+        if (addr_type == BD_ADDR_TYPE_UNKNOWN) continue;
+        le_device_db_remove(i);
+        deleted++;
+    }
+    btstack_tlv_get_instance(&btstack_tlv_singleton_impl, &btstack_tlv_singleton_context);
+    if (btstack_tlv_singleton_impl){
+        btstack_tlv_singleton_impl->delete_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD);
+    }
+    printf("   %d bond(s) cleared. NOTE: the REMOTE still holds its key -- re-pair it too.
+", deleted);
+}
+
 __attribute__((unused))
 static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type){
     // gap_delete_bonding() is the portable API. (This btstack has no

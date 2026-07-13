@@ -111,3 +111,28 @@ bool ble_bridge_take_disconnected(void) {
 uint32_t ble_bridge_dropped(void) {
     return dropped;
 }
+
+/* ================= core 0 <-> core 1 requests + status ================= */
+
+static volatile uint32_t requests;   // core 0 sets bits, core 1 clears them
+static volatile ble_status_t status; // core 1 writes, core 0 reads
+
+void ble_bridge_request(uint32_t req) {
+    requests |= req;  // core 0 only sets; core 1 only clears. A lost race just delays by 100ms.
+}
+
+uint32_t ble_bridge_take_requests(void) {
+    uint32_t r = requests;
+    if (r != 0) {
+        requests &= ~r;
+    }
+    return r;
+}
+
+void ble_bridge_set_status(const ble_status_t* st) {
+    memcpy((void*) &status, st, sizeof(ble_status_t));
+}
+
+void ble_bridge_get_status(ble_status_t* out) {
+    memcpy(out, (const void*) &status, sizeof(ble_status_t));
+}

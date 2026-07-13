@@ -130,7 +130,15 @@ char const* string_desc_arr[] = {
 #else
     "RP2040",  // 1: Manufacturer
 #endif
+/* The last 4 characters are replaced with the chip's unique id below (that is where CUSS / JJ8S /
+   2N1M come from). The config tool decides a device is Bluetooth by looking for the word
+   "Bluetooth" IN THIS STRING (config-tool-web/code.js: productName.includes("Bluetooth")), so the
+   BLE build must say so -- that alone lights up the Pair / Clear-bonds controls in the tool. */
+#ifdef BLE_HOST_ENABLED
+    "HID Remapper Bluetooth XXXX",  // 2: Product
+#else
     "HID Remapper XXXX",  // 2: Product
+#endif
     "123456789012",       // 3: Serial Number
 };
 

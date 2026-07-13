@@ -35,6 +35,10 @@
 #include "ws2812.pio.h"
 #endif
 
+#ifdef BLE_HOST_ENABLED
+#include "ble_bridge.h"
+#endif
+
 // RP2350 UF2s wipe the last sector of flash every time
 // because of RP2350-E10 errata mitigation. So we put
 // the config one sector down.
@@ -209,11 +213,24 @@ void reset_to_bootloader() {
     reset_usb_boot(0, 0);
 }
 
+/* PAIR_NEW_DEVICE (config command 12) and CLEAR_BONDS (13). The web tool already has both buttons.
+   Empty on the wired builds -- there is nothing to pair. The Pico W Bluetooth build implements them
+   through the bridge; see ble_bridge / ble_host. */
+#ifdef BLE_HOST_ENABLED
+void pair_new_device() {
+    ble_bridge_request(BLE_REQ_PAIR_NEW);
+}
+
+void clear_bonds() {
+    ble_bridge_request(BLE_REQ_CLEAR_BONDS);
+}
+#else
 void pair_new_device() {
 }
 
 void clear_bonds() {
 }
+#endif
 
 void my_mutexes_init() {
     for (int i = 0; i < (int8_t) MutexId::N; i++) {

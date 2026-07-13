@@ -49,6 +49,31 @@ bool ble_bridge_take_disconnected(void);
 // How many reports we had to drop because core 0 was not draining fast enough. Should stay 0.
 uint32_t ble_bridge_dropped(void);
 
+/* ---- core 0 -> core 1 REQUESTS (the other direction) ----
+ *
+ * The config tool's "Pair new device" and "Clear bonds" buttons arrive on core 0 as config
+ * commands 12/13. BTstack lives on core 1 and must only be touched from there, so core 0 just
+ * raises a flag and core 1 picks it up in its run loop.
+ */
+#define BLE_REQ_PAIR_NEW    (1u << 0)
+#define BLE_REQ_CLEAR_BONDS (1u << 1)
+
+// core 0: ask core 1 to do something. Never blocks.
+void ble_bridge_request(uint32_t req);
+
+// core 1: collect and clear whatever core 0 asked for.
+uint32_t ble_bridge_take_requests(void);
+
+/* ---- connection status, for the config tool ---- */
+typedef struct {
+    uint8_t connected;    // 1 = a BLE device is connected AND its HID service is up
+    uint8_t addr[6];      // the remote's BLE address
+    char name[32];        // its advertised name, if we saw one
+} ble_status_t;
+
+void ble_bridge_set_status(const ble_status_t* st);  // core 1
+void ble_bridge_get_status(ble_status_t* out);       // core 0
+
 #ifdef __cplusplus
 }
 #endif

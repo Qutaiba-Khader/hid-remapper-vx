@@ -362,6 +362,11 @@ if(PICO_BOARD STREQUAL "pico_w")
     target_compile_definitions(remapper_picow_ble PRIVATE
         PICO_FLASH_BANK_TOTAL_SIZE=8192
         PICO_FLASH_BANK_STORAGE_OFFSET=PICO_FLASH_SIZE_BYTES-PERSISTED_CONFIG_SIZE-8192
+        # Turns on the Bluetooth bits of the SHARED sources: main.cc implements pair_new_device() /
+        # clear_bonds() through the bridge instead of leaving them empty stubs, and
+        # tinyusb_stuff.cc names the device "HID Remapper Bluetooth XXXX" -- which is exactly how
+        # the config tool knows to show the Bluetooth controls (productName.includes("Bluetooth")).
+        BLE_HOST_ENABLED
     )
 
     # WHICH BLE DEVICE TO CONNECT TO.

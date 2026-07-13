@@ -35,6 +35,7 @@ The firmware is one codebase compiled into several executables. Board/role-speci
 | Web v2: unit conversions | `config-tool-web-v2/js/translate.js` | `exprToDevice()`/`exprToApp()` (expression constants are **×1000 fixed point**), ms↔µs, `scale`↔`scaling` |
 | Web v2: usage picker | `config-tool-web-v2/js/picker.js` | `openPicker({mode,current,onSelect,port,onPort})` — uses `.picker-scrim`, **not** `.modal-scrim` (which expressions.css overrides) |
 | Web v2: tests | `config-tool-web-v2/tests/` | `flow.test.js` (whole user journey vs a fake device), `contract.test.js` (reads the firmware source), `no-dummy-data.test.js`, `ui-guards.test.js` |
+| Firmware: tests | `firmware/sim/` | `engine.js` = hand-port of the combo engine + mapping pipeline; `combo.test.js` = 36 tests incl. drift guards that read `remapper.cc`. Run `node --test firmware/sim/*.test.js`. The firmware can't run on Windows — this is the only way to *execute* the logic before flashing. |
 | Persisted config + commands | `src/config.cc` | `CONFIG_VERSION` (**18**), config get/set command handlers |
 | Custom usage pages | `src/remapper.h` | `RGB_LED_USAGE_PAGE 0xFFFA0000`, GPIO/MACRO/EXPR/… page defines |
 | RGB LED driver | `src/main.cc` | `rgb565_to_wire()`, `rgb_led_init()`, `write_rgb_led()`, `RGB_LED_BRIGHTNESS` (64), `#ifdef RGB_LED_ENABLED` block |

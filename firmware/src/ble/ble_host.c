@@ -243,6 +243,20 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
  * @param size
  * @returns true if it does
  */
+/* Forget one device: drop its LTK from the bonding db AND the "last connected" tag, so the next
+   attempt is a genuine fresh pairing rather than another doomed re-encryption. */
+static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type){
+    int index = le_device_db_index_for_address(addr_type, (uint8_t *) addr);
+    if (index >= 0){
+        le_device_db_remove(index);
+        printf("   bond for %s deleted\n", bd_addr_to_str((uint8_t *) addr));
+    }
+    btstack_tlv_get_instance(&btstack_tlv_singleton_impl, &btstack_tlv_singleton_context);
+    if (btstack_tlv_singleton_impl){
+        btstack_tlv_singleton_impl->delete_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD);
+    }
+}
+
 static bool adv_event_contains_hid_service(const uint8_t * packet){
     const uint8_t * ad_data = gap_event_advertising_report_get_data(packet);
     uint8_t ad_len = gap_event_advertising_report_get_data_length(packet);
@@ -264,8 +278,35 @@ static bool adv_event_contains_hid_service(const uint8_t * packet){
        timer is already queued, which is easy to hit when a scan restarts mid-reconnect. */
 #define CONNECTION_TIMEOUT_MS 3000
 #define SCAN_TIMEOUT_MS       5000
+/* HID discovery had NO deadline: hids_client_connect() would return OK and then the peer would
+   simply never answer, leaving the firmware fast-blinking in silence forever -- the exact symptom
+   on hardware. The cause is a STALE BOND: we reconnect and "Re-encryption complete, success", but
+   the remote no longer honours that key for its GATT database, so it accepts the link and then
+   ignores every discovery request. It is not recoverable by waiting.
+   So: give discovery a deadline, and when it expires DELETE THE BOND and pair fresh. Self-healing;
+   no need to put the remote into pairing mode by hand. (Clearing the bonds by hand is exactly what
+   made it work the first time.) */
+#define HID_DISCOVERY_TIMEOUT_MS 6000
 
 static void hog_start_connect(void);
+static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type);
+
+/**
+ * HID discovery went quiet. The bond is not trusted by the peer -- drop it and pair fresh.
+ */
+static void hog_discovery_timeout(btstack_timer_source_t * ts){
+    UNUSED(ts);
+    if (app_state != W4_HID_CLIENT_CONNECTED) return;
+    printf("!! HID discovery timed out -- the peer accepted the link but will not serve its GATT db.\n");
+    printf("   Deleting the bond and pairing fresh.\n");
+    ble_forget_device(remote_device.addr, remote_device.addr_type);
+    app_state = W4_TIMEOUT_THEN_SCAN;
+    if (connection_handle != HCI_CON_HANDLE_INVALID) {
+        gap_disconnect(connection_handle);   // the disconnect handler restarts the scan
+    } else {
+        hog_start_scan();
+    }
+}
 
 /**
  * Scanning found nothing in time -> stop guessing and connect to the device we already know.
@@ -392,9 +433,11 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
             status = gattservice_subevent_hid_service_connected_get_status(packet);
             switch (status){
                 case ERROR_CODE_SUCCESS:
-                    printf("HID service client connected, found %d services\n", 
+                    // discovery succeeded -- disarm the deadline, or it would delete a good bond
+                    btstack_run_loop_remove_timer(&connection_timer);
+                    printf("HID service client connected, found %d services\n",
                         gattservice_subevent_hid_service_connected_get_num_instances(packet));
-        
+
                                         // store device as bonded
                     if (btstack_tlv_singleton_impl){
                         btstack_tlv_singleton_impl->store_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD, (const uint8_t *) &remote_device, sizeof(remote_device));
@@ -608,7 +651,14 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
             app_state = W4_HID_DEVICE_FOUND;
             gap_disconnect(connection_handle);
         } else {
-            printf("hids_client_connect OK, discovering HID service...\n");
+            printf("hids_client_connect OK, discovering HID service (timeout %dms)...\n", HID_DISCOVERY_TIMEOUT_MS);
+            // Arm the deadline. Without it, a peer that accepts the link but ignores GATT leaves
+            // us fast-blinking in silence forever -- there is nothing else in this state to
+            // print, so the firmware just looks dead.
+            btstack_run_loop_remove_timer(&connection_timer);
+            btstack_run_loop_set_timer(&connection_timer, HID_DISCOVERY_TIMEOUT_MS);
+            btstack_run_loop_set_timer_handler(&connection_timer, &hog_discovery_timeout);
+            btstack_run_loop_add_timer(&connection_timer);
         }
     }
 }

@@ -58,6 +58,7 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdlib.h"
 #include "ble_host.h"
+#include "ble_bridge.h"
 
 // ble_gatt.gatt contains the declaration of the provided GATT Services + Characteristics
 // ble_gatt.h    contains the binary representation of ble_gatt.gatt
@@ -232,9 +233,13 @@ static const uint8_t keytable_us_shift[] = {
 
 #define NUM_KEYS 6
 static uint8_t last_keys[NUM_KEYS];
+
+/* A HID report arrived from the remote. Hand it to core 0, where hid-remapper's engine will run it
+   through the mappings and emit it over USB. Do NOT printf here: this is BTstack's run loop, and
+   printing every report at 100+/s stalls it and drops the Bluetooth link. */
 static void hid_handle_input_report(uint8_t service_index, const uint8_t * report, uint16_t report_len){
-    printf("REPORT svc=%u len=%u:", service_index, report_len);
-    printf_hexdump(report, report_len);
+    (void) service_index;   // one HID service; the engine keys off the report id in the payload
+    ble_bridge_push_report(report, report_len);
 }
 
 /**
@@ -452,6 +457,21 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                     btstack_run_loop_remove_timer(&connection_timer);
                     printf("HID service client connected, found %d services\n",
                         gattservice_subevent_hid_service_connected_get_num_instances(packet));
+
+                    /* Hand the remote's HID REPORT DESCRIPTOR to core 0. This is what teaches the
+                       engine what the remote's bytes MEAN -- it becomes "their descriptor", exactly
+                       as a wired USB device's descriptor does. (We still present hid-remapper's OWN
+                       descriptor to the PC; that is the whole point of remapping.) */
+                    {
+                        uint16_t dlen = hids_client_descriptor_storage_get_descriptor_len(hids_cid, 0);
+                        const uint8_t * ddata = hids_client_descriptor_storage_get_descriptor_data(hids_cid, 0);
+                        if ((ddata != NULL) && (dlen > 0)) {
+                            printf("HID report descriptor: %u bytes -> engine\n", dlen);
+                            ble_bridge_set_descriptor(ddata, dlen);
+                        } else {
+                            printf("!! no HID report descriptor from the device (len=%u)\n", dlen);
+                        }
+                    }
 
                                         // store device as bonded
                     if (btstack_tlv_singleton_impl){
@@ -782,6 +802,14 @@ void ble_host_init(void){
 
 void ble_host_run(void) {
     btstack_run_loop_execute();
+}
+
+/* CORE 1 entry point. btstack_run_loop_execute() never returns -- which is exactly why BTstack gets
+   a core to itself, leaving core 0 free to run hid-remapper's engine and the USB device stack.
+   (shiomachisoft/picow_ble_usb_hid_bridge does the same, and it is proven on this hardware.) */
+void ble_host_main(void) {
+    ble_host_init();
+    ble_host_run();
 }
 
 /* EXAMPLE_END */

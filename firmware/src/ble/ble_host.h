@@ -11,6 +11,8 @@ void ble_host_init(void);
 void ble_host_set_target_addr(const char * addr_str);
 // Run the BTstack loop; does not return.
 void ble_host_run(void);
+// CORE 1 entry point: init + run the BTstack loop. Never returns.
+void ble_host_main(void);
 #ifdef __cplusplus
 }
 #endif

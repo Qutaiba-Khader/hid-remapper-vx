@@ -285,11 +285,57 @@ if(PICO_BOARD STREQUAL "pico_w")
     pico_add_extra_outputs(remapper_picow)
 
     # BLE HID-over-GATT host (for BLE remotes like the G20s)
+    # THE PICO W BLUETOOTH REMAPPER.
+    # The FULL hid-remapper engine (same sources as `remapper`), with the BLE HID host in place of
+    # the PIO-USB host: BTstack on core 1, engine + TinyUSB DEVICE on core 0, meeting only in
+    # ble_bridge.c. The PC sees hid-remapper's own emulated device, not the BLE remote -- which is
+    # the entire point.
     add_executable(remapper_picow_ble
-        src/ble/remapper_picow_ble.cc
+        src/main.cc
+        src/remapper.cc
+        src/remapper_picow_ble.cc     # the board hooks + core-1 launch
+        src/crc.cc
+        src/descriptor_parser.cc
+        src/tinyusb_stuff.cc
+        src/our_descriptor.cc
+        src/globals.cc
+        src/config.cc
+        src/quirks.cc
+        src/interval_override.cc
+        src/out_report.cc
+        src/tick.cc
+        src/activity_led.cc
+        src/ps_auth.cc
+        src/app_driver.cc
+        src/xbox.cc
         src/ble/ble_host.c
+        src/ble/ble_bridge.c
     )
-    target_include_directories(remapper_picow_ble PRIVATE src/ble)
+    target_include_directories(remapper_picow_ble PRIVATE src src/ble)
+
+    # ---- THE FLASH LANDMINE ----
+    # hid-remapper keeps its config in the LAST flash sector (main.cc CONFIG_OFFSET_IN_FLASH =
+    # PICO_FLASH_SIZE_BYTES - PERSISTED_CONFIG_SIZE). The pico-sdk's BTstack bond storage
+    # (pico_flash_bank) defaults to the LAST 8K -- straight on top of it.
+    #
+    # Flash erases a whole sector, so if we left it there:
+    #   * every "Save to device" would WIPE YOUR BLUETOOTH PAIRING, and
+    #   * every pairing would CORRUPT YOUR CONFIG (bad CRC -> silently reverts to defaults,
+    #     every mapping gone, with no error).
+    # They would destroy each other forever, and a config backup does not help -- restoring it
+    # unpairs the remote again.
+    #
+    # So we pin the bond storage BELOW the config sector instead of leaving it to a default:
+    #   config : [FLASH_END - 4096,          FLASH_END)
+    #   bonds  : [FLASH_END - 4096 - 8192,   FLASH_END - 4096)
+    # remapper_picow_ble.cc static_asserts that these cannot overlap, so a future edit cannot
+    # quietly re-introduce this.
+    # Computed as a C expression, not in CMake: PICO_FLASH_SIZE_BYTES comes from the board header
+    # and PERSISTED_CONFIG_SIZE from add_compile_definitions() above -- neither is a CMake variable.
+    target_compile_definitions(remapper_picow_ble PRIVATE
+        PICO_FLASH_BANK_TOTAL_SIZE=8192
+        PICO_FLASH_BANK_STORAGE_OFFSET=(PICO_FLASH_SIZE_BYTES-PERSISTED_CONFIG_SIZE-8192)
+    )
 
     # WHICH BLE DEVICE TO CONNECT TO.
     # Empty (the default) = the old behaviour: connect to the first advertiser carrying the HID
@@ -321,6 +367,13 @@ if(PICO_BOARD STREQUAL "pico_w")
 
     target_link_libraries(remapper_picow_ble
         pico_stdlib
+        pico_unique_id
+        pico_multicore          # BTstack gets core 1 to itself
+        hardware_pio
+        hardware_dma
+        hardware_flash
+        tinyusb_device          # we are a USB DEVICE. NOT a host -- the input arrives over BLE.
+        tinyusb_board
         pico_cyw43_arch_none
         pico_btstack_cyw43
         pico_btstack_ble

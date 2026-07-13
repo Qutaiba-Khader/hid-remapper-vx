@@ -110,8 +110,14 @@
 
   /* ---- tokenize -------------------------------------------- */
   function stripComments(s) { return s.replace(/\/\*[\s\S]*?\*\//g, " "); }
+  /* A /* comment *​/ is kept as a TOKEN of its own. It used to be stripped here, which meant any
+     edit through the block palette silently deleted the user's comments (the lane rebuilds the
+     expression from its tokens). device.js strips comments again on the way to the device, so
+     keeping them costs nothing on the wire. */
+  const COMMENT_RE = /^\/\*[\s\S]*\*\/$/;
+  function isCommentTok(t) { return COMMENT_RE.test(t); }
   function tokenize(s) {
-    return stripComments(s).trim().split(/\s+/).filter(Boolean);
+    return (String(s).match(/\/\*[\s\S]*?\*\/|\S+/g) || []).filter(Boolean);
   }
   const NUM_RE = /^-?(?:0x[0-9a-fA-F]+|\d+\.?\d*|\.\d+)$/;
   function isNumTok(t) { return NUM_RE.test(t); }
@@ -124,6 +130,7 @@
     if (!toks.length) return { ok: true, tree: null, empty: true };
     const stack = [];
     for (const tok of toks) {
+      if (isCommentTok(tok)) continue;            // a comment is not an operation
       if (isNumTok(tok)) {
         stack.push(isHexTok(tok) ? { t: "usage", v: tok } : { t: "num", v: tok });
         continue;
@@ -226,7 +233,7 @@
 
   window.HRX_EXPR = {
     OPS, USAGE_NAMES, INPUT_CHOICES, usageLabel,
-    tokenize, isNumTok, isHexTok, parse, serialize, toEnglish,
+    tokenize, isNumTok, isHexTok, isCommentTok, parse, serialize, toEnglish,
     isLeaf, toPipeline, fromPipeline,
     mkNum, mkUsage, mkOp, mkInput,
   };

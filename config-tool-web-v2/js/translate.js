@@ -93,9 +93,15 @@
   // a NUMBER, not a usage: "0x00010030" also starts with a digit, so hex must be excluded or the
   // usage itself gets rescaled to 0
   const isNumTok = (t) => /^-?[0-9]/.test(t) && !/^-?0x/i.test(t);
+  // Rescale numbers, but NEVER inside a /* comment */ — "/* scale 0.5 */" must stay as written.
   const mapExprNums = (expr, fn) => String(expr || "")
-    .split(/(\s+)/)                       // keep the whitespace so formatting survives
-    .map((t) => (isNumTok(t) ? fn(t) : t))
+    .split(/(\/\*[\s\S]*?\*\/)/)          // keep comment blocks whole and untouched
+    .map((chunk) => (chunk.startsWith("/*")
+      ? chunk
+      : chunk
+        .split(/(\s+)/)                   // keep the whitespace so formatting survives
+        .map((t) => (isNumTok(t) ? fn(t) : t))
+        .join("")))
     .join("");
 
   // human "0.05"  ->  device "50"

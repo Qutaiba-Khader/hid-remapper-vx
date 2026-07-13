@@ -126,9 +126,42 @@
     return cats.filter((c) => c.id !== drop);
   }
 
+  /* OUTPUTS FOLLOW THE EMULATED PROFILE.
+     `usages[our_descriptor_number]` (from the original tool) is the set of usages a given emulated
+     device can actually SEND — a "Nintendo Switch" build cannot emit mouse movement. Offering those
+     targets anyway lets you build a mapping the device will silently ignore, so the output list is
+     filtered to the current profile, and the profile's own NAME is used where it has one.
+
+     The firmware's internal target pages are always available whatever the profile: layers, macros,
+     GPIO, registers, digipot, D-pad and the RGB LED. (Expressions, 0xFFF3, are a SOURCE only — you
+     read an expression, you never write to one — so they are correctly not offered as an output.) */
+  const ALWAYS_TARGETABLE = ["0xfff1", "0xfff2", "0xfff4", "0xfff5", "0xfff6", "0xfff9", "0xfffa"];
+  function profileTargets() {
+    if (state.mode !== "output") return null;                // only the target list is constrained
+    const v1 = window.HRX_V1_USAGES;
+    const APP = window.HRX_STATE && window.HRX_STATE.APP;
+    if (!v1 || !APP) return null;
+    const table = v1[APP.settings.emulatedDevice] || v1[0];
+    if (!table) return null;
+    const allowed = new Set(Object.keys(table).map((k) => k.toLowerCase()));
+    return { allowed, name: (code) => (table[code] && table[code].name) || null };
+  }
+  const alwaysOk = (code) => ALWAYS_TARGETABLE.some((p) => code.startsWith(p));
+
   function categories() {
     const dev = deviceCategory();
-    return labelFiltered(dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES.slice());
+    let cats = labelFiltered(dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES.slice());
+
+    const prof = profileTargets();
+    if (prof) {
+      cats = cats.map((c) => {
+        const usages = c.usages
+          .filter(([code]) => prof.allowed.has(code) || alwaysOk(code))
+          .map(([code, name]) => [code, prof.name(code) || name]);   // the profile's own label wins
+        return Object.assign({}, c, { usages });
+      }).filter((c) => c.usages.length);
+    }
+    return cats;
   }
 
   function listHtml(query) {

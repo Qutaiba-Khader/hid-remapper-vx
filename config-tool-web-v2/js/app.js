@@ -292,7 +292,20 @@ if (window.HRX_DEVICE && window.HRX_DEVICE.onDisconnect) {
   });
 }
 
+// Back to top (v1 parity) — the mappings list gets long. One button, appended once, shown only
+// once you have actually scrolled.
+function mountBackToTop() {
+  if (document.getElementById("backToTop")) return;
+  const btn = h(`<button id="backToTop" class="back-to-top" title="Back to top">${ICON.up}</button>`);
+  document.body.appendChild(btn);
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  const sync = () => btn.classList.toggle("show", window.scrollY > 260);
+  window.addEventListener("scroll", sync, { passive: true });
+  sync();
+}
+
 function boot() {
+  mountBackToTop();
   // Start disconnected (honest): the sample mappings still render so the tool is
   // fully explorable/editable offline; "Open device" runs real WebHID.
   APP.connection = "disconnected";

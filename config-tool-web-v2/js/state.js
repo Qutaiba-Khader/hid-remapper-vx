@@ -75,6 +75,8 @@ const APP = {
   activeTab: "mappings",
   config: { title: "" },
   groupDisabled: false,
+  sortKey: null,   // 'input' | 'output' | 'layers' — set by clicking a column header
+  sortDir: 1,      // 1 = A→Z, -1 = Z→A
   exprActive: 0, // which of the 8 expression slots is selected
   expressions: ["", "", "", "", "", "", "", ""],
   macros: Array.from({ length: 32 }, () => []),

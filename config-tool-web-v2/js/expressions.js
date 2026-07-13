@@ -68,6 +68,7 @@
     if (!toks.length) return { ok: true, tree: null, empty: true };
     const stack = [];
     for (const tok of toks) {
+      if (E.isCommentTok(tok)) continue;                                     // not an operation
       if (tok === "?") { stack.push({ t: "hole" }); continue; }
       if (E.isNumTok(tok)) { stack.push(E.isHexTok(tok) ? { t: "usage", v: tok } : { t: "num", v: tok }); continue; }
       const op = E.OPS[tok];
@@ -373,21 +374,30 @@
     M.redoBtn.classList.toggle("disabled", M.hi >= M.hist.length - 1);
   }
 
-  /* ---- code <-> stack lane (draft-bound) ---- */
+  /* ---- code <-> stack lane (draft-bound) ----
+     The DRAFT is canonical RPN (with `eol` tokens). The code box SHOWS `eol` as a real line break
+     and turns typed line breaks back into `eol`, which is how v1 presents multi-line expressions. */
   function loadDraft(str) {
-    M.syncing = true; M.codeEl.value = str; M.syncing = false;
-    M.draft = str; M.tokens = E.tokenize(str);
+    M.draft = String(str);
+    M.syncing = true; M.codeEl.value = toDisplay(M.draft); M.syncing = false;
+    M.tokens = E.tokenize(M.draft);
     renderLane();
   }
   function onCode() {
     if (M.syncing) return;
-    M.draft = M.codeEl.value; M.tokens = E.tokenize(M.draft);
+    M.draft = fromDisplay(M.codeEl.value);          // newlines -> eol
+    M.tokens = E.tokenize(M.draft);
     snapshot(true);
     renderLane();
   }
+  // `eol` IS the firmware's line break. v1 shows it as a newline; do the same in the code box, and
+  // turn newlines back into `eol` tokens on the way in, so a multi-line expression survives.
+  const toDisplay = (d) => String(d).replace(/\s*\beol\b\s*/g, "\n");
+  const fromDisplay = (v) => String(v).replace(/\n+/g, " eol ").replace(/[ \t]+/g, " ").trim();
+
   function commitTokens(fromTyping) {
     M.draft = M.tokens.join(" ");
-    M.syncing = true; M.codeEl.value = M.draft; M.syncing = false;
+    M.syncing = true; M.codeEl.value = toDisplay(M.draft); M.syncing = false;
     snapshot(!!fromTyping);
     renderLane();
   }
@@ -395,7 +405,7 @@
     // value / usage edits don't change the stack structure, so don't rebuild
     // the lane (keeps the field focused) — just refresh code, status & readback.
     M.draft = M.tokens.join(" ");
-    M.syncing = true; M.codeEl.value = M.draft; M.syncing = false;
+    M.syncing = true; M.codeEl.value = toDisplay(M.draft); M.syncing = false;
     snapshot(!!fromTyping);
     statusAndRead();
   }
@@ -431,6 +441,7 @@
   function analyze(tokens) {
     let depth = 0, underflow = false, unknown = false;
     const rows = tokens.map((t) => {
+      if (E.isCommentTok(t)) return { t, depth, ok: true, comment: true };   // not an operation
       if (E.isNumTok(t)) { depth += 1; return { t, depth, ok: true }; }
       const op = E.OPS[t];
       if (!op) { unknown = true; return { t, depth, ok: false }; }

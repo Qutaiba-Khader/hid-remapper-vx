@@ -209,15 +209,17 @@
       </div>`;
   }
 
+  // click-to-sort (v1 parity). Clicking the same column again reverses it.
+  const sortArrow = (key) => (APP.sortKey === key ? (APP.sortDir === 1 ? " ▲" : " ▼") : "");
   function wireHeadHtml() {
     return `
       <div class="wire-head">
-        <div class="wh-trunk">Input button</div>
+        <div class="wh-trunk sortable" data-sort="input" title="Sort by input button">Input button${sortArrow("input")}</div>
         <div class="wh-cols">
           <div>Pressed alone / in a combo</div>
           <div class="mh-arrow"></div>
-          <div>Output</div>
-          <div>Layers · Modes</div>
+          <div class="sortable" data-sort="output" title="Sort by output">Output${sortArrow("output")}</div>
+          <div class="sortable" data-sort="layers" title="Sort by layer">Layers · Modes${sortArrow("layers")}</div>
           <div style="text-align:center">Scale</div>
           <div style="text-align:center">Color</div>
           <div style="text-align:center">Edit</div>
@@ -232,6 +234,23 @@
           <h4>No mappings yet</h4>
           <div>Add a mapping, or jump to <b>Quick Start</b> for one-click presets.</div>
         </div>`;
+
+    // sort, if a column header was clicked (this REORDERS APP.mappings, exactly like v1 —
+    // the order is what gets written to the device)
+    if (APP.sortKey) {
+      const firstLayer = (m) => { const i = m.layers.findIndex(Boolean); return i < 0 ? 99 : i; };
+      const keyOf = {
+        input:  (m) => usageName(m.inputs[0]).toLowerCase(),
+        output: (m) => usageName(m.output).toLowerCase(),
+        layers: (m) => String(firstLayer(m)).padStart(2, "0") + usageName(m.inputs[0]).toLowerCase(),
+      }[APP.sortKey];
+      if (keyOf) {
+        APP.mappings.sort((a, b) => {
+          const ka = keyOf(a), kb = keyOf(b);
+          return ka < kb ? -APP.sortDir : ka > kb ? APP.sortDir : 0;
+        });
+      }
+    }
 
     let groups = groupByFirstInput(APP.mappings);
     if (APP.groupDisabled) {
@@ -276,6 +295,14 @@
   }
 
   function wireMappings(root) {
+    $$('[data-sort]', root).forEach((h) => h.addEventListener("click", () => {
+      const k = h.dataset.sort;
+      if (APP.sortKey === k) APP.sortDir = -APP.sortDir;   // same column again -> reverse
+      else { APP.sortKey = k; APP.sortDir = 1; }
+      refresh();
+      toast("Sorted by " + k + (APP.sortDir === 1 ? " (A→Z)" : " (Z→A)"));
+    }));
+
     $("#addMap", root).addEventListener("click", () => {
       APP.mappings.push(mk("0x00000000", "0x00000000"));
       refresh();

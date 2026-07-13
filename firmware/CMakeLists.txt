@@ -325,10 +325,16 @@ if(PICO_BOARD STREQUAL "pico_w")
     # tusb_config_DEVICE, not _both: this build is a USB DEVICE only. There is no USB host --
     # the input arrives over Bluetooth. (Without this, tusb.h pulls in no device API at all and
     # every tud_* call is "not declared in this scope".)
+    # src/ble MUST come FIRST.
+    # There are TWO btstack_config.h files: src/btstack_config.h (Classic BT, for remapper_picow)
+    # and src/ble/btstack_config.h (BLE). With src/ first, BTstack's hci.c picked up the CLASSIC
+    # one, which has no ENABLE_LE_PERIPHERAL -- and failed with
+    #   "'hci_stack_t' has no member named 'le_advertisements_state'"
+    # which looks like a BTstack version problem and is not.
     target_include_directories(remapper_picow_ble PRIVATE
+        src/ble
         src
         src/tusb_config_device
-        src/ble
     )
 
     # ---- THE FLASH LANDMINE ----

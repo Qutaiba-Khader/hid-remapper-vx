@@ -68,8 +68,13 @@ test("the monitor's + button takes the user to the mapping it creates", () => {
   const js = read("js/tabs.js");
   const i = js.indexOf("data-mkmap]");
   assert.ok(i > -1, "the data-mkmap handler must exist");
-  const handler = js.slice(i, i + 700);
+  // the handler lives in mapThis(), bound ONCE to a stable <tr> (a live redraw must not
+  // destroy the button mid-click — see monitor.test.js)
+  const j = js.indexOf("function mapThis");
+  assert.ok(j > -1, "the + handler must be a named function bound to a stable row");
+  const handler = js.slice(j, j + 700);
   assert.ok(/setTab\("mappings"\)/.test(handler),
     'clicking + must switch to the Mappings tab — otherwise nothing visible happens and the button looks dead');
+  assert.ok(/HRX_STATE\.mk\(r\.usage/.test(handler), "and it must create the mapping for that usage");
   assert.ok(/HRX_STATE\.mk\(/.test(handler), "it must actually create a mapping");
 });

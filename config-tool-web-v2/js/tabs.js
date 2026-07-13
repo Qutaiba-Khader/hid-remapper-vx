@@ -242,29 +242,63 @@
         </div>
       </div>
     </div>`;
+    monEls.clear(); // the container was just rebuilt — the cached <tr>s are no longer in the DOM
     paintMon();
-    $("#monClear", container).addEventListener("click", () => { monData.clear(); paintMon(); toast("Monitor cleared"); });
+    $("#monClear", container).addEventListener("click", () => { monData.clear(); monEls.clear(); paintMon(); toast("Monitor cleared"); });
   };
+
+  /* THE + BUTTON MUST SURVIVE A LIVE REDRAW.
+
+     This used to do `body.innerHTML = rows.map(rowMon)` on EVERY monitor report. The device
+     being monitored is usually the very mouse you are holding, so moving it toward the +
+     button streams Cursor X/Y and rebuilds the whole table dozens of times a second. The
+     button you are pressing is destroyed between mousedown and mouseup, and the browser only
+     fires `click` when both land on the same element — so the + did nothing, forever.
+     (Scripted clicks worked fine, which is exactly why unit tests and a scripted browser pass
+     never caught it: neither one moves a physical mouse.)
+
+     So: build each row ONCE and keep it. Live updates only rewrite the text of the number
+     cells; the <tr> and its button are stable nodes that are never replaced. */
+  const monEls = new Map(); // key -> <tr>
+
+  function mapThis(r) {
+    const existing = APP.mappings.find((m) => (m.inputs || [])[0] === r.usage);
+    if (existing) {
+      toast(`${r.name} is already mapped — opening it`);
+    } else {
+      APP.mappings.push(window.HRX_STATE.mk(r.usage, "0x00000000"));
+      toast(`Mapping added for ${r.name} — now pick its output`);
+    }
+    window.HRX.setTab("mappings");
+  }
 
   function paintMon() {
     const body = $("#monBody");
     if (!body) return;
-    const rows = Array.from(monData.values());
-    body.innerHTML = rows.map(rowMon).join("") ||
-      `<tr><td colspan="7" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
-    $$('#monBody [data-mkmap]').forEach((b) => b.addEventListener("click", () => {
-      // Create the mapping AND take the user to it. Previously this pushed the row and stayed
-      // on the Monitor tab, so nothing visible happened and the button looked dead.
-      const code = b.dataset.code;
-      const existing = APP.mappings.find((m) => (m.inputs || [])[0] === code);
-      if (existing) {
-        toast(`${b.dataset.name} is already mapped — opening it`);
-      } else {
-        APP.mappings.push(window.HRX_STATE.mk(code, "0x00000000"));
-        toast(`Mapping added for ${b.dataset.name} — now pick its output`);
+
+    if (!monData.size) {
+      monEls.clear();
+      body.innerHTML = `<tr><td colspan="7" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
+      return;
+    }
+    if (!monEls.size) body.innerHTML = ""; // drop the placeholder
+
+    for (const [key, r] of monData) {
+      let tr = monEls.get(key);
+      if (!tr) {
+        tr = document.createElement("tr");
+        tr.innerHTML = rowMonCells(r);
+        body.appendChild(tr);
+        monEls.set(key, tr);
+        // bound once, on a node that is never replaced
+        tr.querySelector("[data-mkmap]").addEventListener("click", () => mapThis(r));
       }
-      window.HRX.setTab("mappings");
-    }));
+      const c = tr.children;
+      c[2].textContent = portLabel(r.hub_port);
+      c[3].textContent = r.last;
+      c[4].textContent = r.min;
+      c[5].textContent = r.max;
+    }
   }
   /* The firmware sends HUB_PORT_NONE (255) when the device is NOT behind a USB hub — i.e.
      "there is no port", not "port 255". Printing the raw number puts a meaningless 255 on
@@ -275,16 +309,18 @@
     return (!n || n === HUB_PORT_NONE) ? "—" : String(n);
   }
 
-  function rowMon(r) {
-    return `<tr>
-      <td style="padding:9px 12px;font-family:var(--font-mono);color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.usage}</td>
-      <td style="padding:9px 12px;color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.name}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);color:#fff;border-bottom:1px solid var(--border-soft)">${portLabel(r.hub_port)}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.last}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.min}</td>
-      <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.max}</td>
-      <td style="padding:9px 12px;border-bottom:1px solid var(--border-soft)"><button class="icon-btn" data-mkmap="1" data-code="${r.usage}" data-name="${r.name}" title="Create mapping">${ICON.plus}</button></td>
-    </tr>`;
+  // cells only — the <tr> is created once by paintMon and then reused
+  function rowMonCells(r) {
+    const td = "padding:9px 12px;border-bottom:1px solid var(--border-soft)";
+    const mono = "font-family:var(--font-mono);";
+    return `
+      <td style="${mono}color:var(--text-strong);${td}">${r.usage}</td>
+      <td style="color:var(--text-strong);${td}">${r.name}</td>
+      <td style="${mono}color:#fff;${td}">${portLabel(r.hub_port)}</td>
+      <td style="${mono}${td}">${r.last}</td>
+      <td style="${mono}${td}">${r.min}</td>
+      <td style="${mono}${td}">${r.max}</td>
+      <td style="${td}"><button class="icon-btn" data-mkmap="1" data-code="${r.usage}" data-name="${r.name}" title="Create mapping">${ICON.plus}</button></td>`;
   }
 
   /* ---------------- MACROS (32 slots, accordion) ----------------

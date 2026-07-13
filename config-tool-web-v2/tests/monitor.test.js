@@ -211,3 +211,23 @@ test("hub port 255 is HUB_PORT_NONE — it must never be shown as a port number"
   const cc = fs.readFileSync(path.join(__dirname, "..", "..", "firmware", "src", "remapper.cc"), "utf8");
   assert.match(cc, /#define HUB_PORT_NONE 255/);
 });
+
+test("a live monitor update must NOT rebuild the rows — it destroys the + button mid-click", () => {
+  // THE BUG: paintMon did `body.innerHTML = rows.map(rowMon)` on EVERY monitor report. The
+  // monitored device is usually the very mouse you are holding, so moving it toward the +
+  // button streams Cursor X/Y and rebuilt the table dozens of times a second. The button was
+  // destroyed between mousedown and mouseup, and a browser only fires `click` when both land
+  // on the SAME element -- so the + did nothing, forever.
+  //
+  // Scripted clicks worked (they move no mouse), which is why unit tests AND a scripted
+  // browser pass both missed it. The row must therefore be a STABLE node.
+  const t = readSrc("js/tabs.js");
+  assert.ok(/const monEls = new Map\(\)/.test(t), "rows must be cached as real DOM nodes");
+  assert.ok(/tr\.querySelector\("\[data-mkmap\]"\)\.addEventListener/.test(t),
+    "the + listener must be bound once to a node that is never replaced");
+  assert.ok(/c\[3\]\.textContent = r\.last/.test(t),
+    "a live update must only rewrite the number cells, not the row");
+  assert.ok(!/rows\.map\(rowMon\)\.join/.test(t),
+    "the old full-rebuild-on-every-report must be gone — that is what broke the + button");
+  assert.ok(/monEls\.clear\(\)/.test(t), "and the cache must be dropped when the container is rebuilt");
+});

@@ -309,7 +309,10 @@ if(PICO_BOARD STREQUAL "pico_w")
         src/config.cc
         src/quirks.cc
         src/interval_override.cc
-        src/out_report.cc
+        # NO src/out_report.cc: it drives the USB HOST (tuh_hid_set_report / tuh_hid_get_report) to
+        # push reports back OUT to a wired input device. There is no host in this build and nothing
+        # to push back to a BLE remote, so the engine's out-report hooks are no-ops in
+        # remapper_picow_ble.cc and this file is not compiled at all.
         src/tick.cc
         src/activity_led.cc
         src/ps_auth.cc

@@ -27,7 +27,6 @@
 #include "ble/ble_bridge.h"
 #include "ble/ble_host.h"
 #include "descriptor_parser.h"
-#include "out_report.h"
 #include "remapper.h"
 #include "tick.h"
 

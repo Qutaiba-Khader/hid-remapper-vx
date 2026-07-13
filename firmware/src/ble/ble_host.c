@@ -465,7 +465,19 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         // continue - query primary services
         printf("Search for HID service.\n");
         app_state = W4_HID_CLIENT_CONNECTED;
-        hids_client_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
+        // NEVER ignore this status. It used to be discarded, so when the call failed we printed
+        // "Search for HID service." and hung forever with no clue why. It fails with
+        // BTSTACK_MEMORY_ALLOC_FAILED when MAX_NR_HIDS_CLIENTS is not defined in btstack_config.h.
+        uint8_t status = hids_client_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
+        if (status != ERROR_CODE_SUCCESS){
+            // 0x56 = BTSTACK_MEMORY_ALLOC_FAILED -> the HIDS client pool is empty, i.e.
+            // MAX_NR_HIDS_CLIENTS is missing from btstack_config.h.
+            printf("!! hids_client_connect FAILED, status = 0x%02x (0x56 = out of memory: check MAX_NR_HIDS_CLIENTS)\n", status);
+            app_state = W4_HID_DEVICE_FOUND;
+            gap_disconnect(connection_handle);
+        } else {
+            printf("hids_client_connect OK, discovering HID service...\n");
+        }
     }
 }
 /* LISTING_END */

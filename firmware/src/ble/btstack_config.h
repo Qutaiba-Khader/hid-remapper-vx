@@ -22,6 +22,17 @@
 #define HCI_ACL_CHUNK_SIZE_ALIGNMENT 4
 #define MAX_NR_BTSTACK_LINK_KEY_DB_MEMORY_ENTRIES 2
 #define MAX_NR_GATT_CLIENTS 1
+// THE HID-over-GATT client is allocated from a STATIC POOL sized by this define. Without it (and
+// without HAVE_MALLOC, which we do not set) the pool is ZERO entries, so
+// btstack_memory_hids_client_get() returns NULL and hids_client_connect() fails immediately with
+// an out-of-memory error -- before any GATT discovery is even attempted.
+//
+// That is exactly why this firmware used to print "Search for HID service." and then hang forever:
+// the call failed, we ignored its return value, and no HID reports could ever arrive. It would have
+// failed on ANY device, not just one that advertises no HID UUID -- so this is a bug SEPARATE from
+// the device-selection problem. Found by diffing against shiomachisoft/picow_ble_usb_hid_bridge,
+// which works and defines it.
+#define MAX_NR_HIDS_CLIENTS 1
 #define MAX_NR_HCI_CONNECTIONS 1
 #define MAX_NR_L2CAP_CHANNELS 4
 #define MAX_NR_L2CAP_SERVICES 3

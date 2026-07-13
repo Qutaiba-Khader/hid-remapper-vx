@@ -4,7 +4,7 @@
    device.js writes to it. This is the "pretend the device is plugged in" test.
 
      open device -> auto-load -> add a mapping -> pick input -> pick output
-     -> set layers -> make it a combo -> set window + consume -> save
+     -> set layers -> save
      -> read it back and confirm the device would return the same thing
 
    Run: cd config-tool-web-v2 && node --test tests/*.test.js */
@@ -108,96 +108,6 @@ function freshApp() {
 }
 
 const T = require("../js/translate.js");
-
-test("FULL FLOW: open device -> add -> remap -> combo -> save -> read back", async () => {
-  const { D, state, sent } = makeJJ8S();
-  const { APP, mk, uid } = freshApp();
-
-  /* 1. the page boots empty — nothing invented */
-  assert.strictEqual(APP.mappings.length, 0, "boots with no mappings");
-
-  /* 2. open the device; the app loads its real config */
-  const info = await D.connect();
-  assert.strictEqual(info.name, "JJ8S", "we are talking to the test device, not CUSS");
-
-  const loaded = await D.loadFromDevice();
-  Object.assign(APP, T.configToApp(loaded, APP, uid));
-  assert.strictEqual(APP.mappings.length, 0, "the device is empty to start with");
-  assert.deepStrictEqual(APP.settings.passthrough, [true, true, true, true, true, true, true, true],
-    "the device's real passthrough (all 8 layers) is what we show");
-
-  /* 3. add a mapping (the "Add mapping" button) */
-  APP.mappings.push(mk("0x00000000", "0x00000000"));
-  assert.strictEqual(APP.mappings.length, 1);
-
-  /* 4. pick the input, then the output (the picker's onSelect) */
-  const row = APP.mappings[0];
-  row.inputs[0] = "0x000c0041";  // Menu Select
-  row.output = "0x00070028";     // Return (Enter)
-
-  /* 5. make it fire only on layers 0 and 2, and only on a tap */
-  row.layers = [true, false, true, false, false, false, false, false];
-  row.tap = true;
-  row.scale = 1;
-
-  /* 6. add a second row and turn it into a COMBO */
-  const combo = mk(["0x000c00e9", "0x000c00ea"], "0x000c00e2"); // Vol+ & Vol- -> Mute
-  combo.comboWindow = 50;
-  combo.comboConsume = true;
-  APP.mappings.push(combo);
-
-  /* 7. save to the device */
-  const cfg = T.appToConfig(APP, { forDevice: true });
-  const res = await D.saveToDevice(cfg);
-  assert.strictEqual(res.ok, true, "the save must succeed");
-
-  /* the device must have been suspended, wiped and resumed */
-  assert.ok(sent.includes(CMD.SUSPEND) && sent.includes(CMD.RESUME), "suspend/resume around the write");
-  assert.ok(sent.includes(CMD.CLEAR_MAPPING), "old mappings cleared");
-  assert.ok(sent.includes(CMD.PERSIST_CONFIG), "config persisted to flash");
-
-  /* 8. check the exact bytes that landed on the device */
-  assert.strictEqual(state.mappings.length, 4, "1 plain mapping + (2 combo members + 1 trigger)");
-
-  const plain = state.mappings[0];
-  assert.strictEqual(plain.source, 0x000c0041);
-  assert.strictEqual(plain.target, 0x00070028);
-  assert.strictEqual(plain.layerMask, 0b00000101, "layers 0 and 2");
-  assert.strictEqual(plain.flags & TAP, TAP, "tap flag set");
-  assert.strictEqual(plain.flags & CONSUME, 0, "a plain mapping must NOT carry the combo flag");
-  assert.strictEqual(plain.scaling, 1000, "scale x1.0");
-
-  const m1 = state.mappings[1], m2 = state.mappings[2], trig = state.mappings[3];
-  assert.strictEqual(m1.target, 0xfffb0001, "member 1 targets combo 1");
-  assert.strictEqual(m1.source, 0x000c00e9);
-  assert.strictEqual(m1.scaling, 50, "the timing window rides in scaling (ms)");
-  assert.strictEqual(m1.flags & CONSUME, CONSUME, "consume flag on the member");
-  assert.strictEqual(m2.target, 0xfffb0001);
-  assert.strictEqual(m2.source, 0x000c00ea);
-  assert.strictEqual(trig.source, 0xfffb0001, "the trigger reads the combo");
-  assert.strictEqual(trig.target, 0x000c00e2, "and fires Mute");
-  assert.strictEqual(trig.flags & CONSUME, 0, "the trigger is not a member");
-
-  /* 9. read it all back — the device returns what we wrote, and it folds to the same UI rows */
-  const back = await D.loadFromDevice();
-  const app2 = T.configToApp(back, {}, null);
-
-  assert.strictEqual(app2.mappings.length, 2, "4 device mappings fold back into 2 UI rows");
-
-  const r1 = app2.mappings[0];
-  assert.deepStrictEqual(r1.inputs, ["0x000c0041"]);
-  assert.strictEqual(r1.output, "0x00070028");
-  assert.deepStrictEqual(r1.layers, [true, false, true, false, false, false, false, false]);
-  assert.strictEqual(r1.tap, true);
-
-  const r2 = app2.mappings[1];
-  assert.deepStrictEqual(r2.inputs, ["0x000c00e9", "0x000c00ea"], "the combo comes back as ONE row");
-  assert.strictEqual(r2.output, "0x000c00e2");
-  assert.strictEqual(r2.comboWindow, 50);
-  assert.strictEqual(r2.comboConsume, true);
-
-  await D.disconnect();
-});
 
 test("FLOW: a mapping's hub port survives the round trip (v1 parity)", async () => {
   const { D, state } = makeJJ8S();

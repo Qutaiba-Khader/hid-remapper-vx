@@ -1,12 +1,11 @@
 /* ============================================================
-   HID Remapper VX — Mappings tab (rows, combos, interactions)
+   HID Remapper VX — Mappings tab (rows, interactions)
    ============================================================ */
 (function () {
   const { APP, ROW_TINTS, tintById, mk } = window.HRX_STATE;
   const { usageName, usageAccent } = window.HRX_USAGES;
   const { h, $, $$, toast } = window.HRX;
 
-  // Wire is the only combo layout (Inline/Stacked were removed per owner).
 
   function findMap(id) { return APP.mappings.find((m) => m.id === +id); }
   function indexOfMap(id) { return APP.mappings.findIndex((m) => m.id === +id); }
@@ -36,28 +35,6 @@
         <span class="u-name">${usageName(code)}</span>
         <span class="chev">${ICON.chevron}</span>
       </button>`;
-  }
-
-  /* ---------- combo-only row controls: timing window + consume ---------- */
-  function comboOptsHtml(m) {
-    const win = m.comboWindow == null ? 50 : m.comboWindow;
-    const consume = m.comboConsume === true;
-    // the Settings master switch means "don't send combos to the device" — say so on the row
-    // rather than dropping it silently at save time
-    const off = APP.settings && APP.settings.combosEnabled === false;
-    return `
-      <div class="combo-opts">
-        <label class="combo-win" title="All keys must go down within this many milliseconds. 0 = no timing window.">
-          <span class="flag-key">Win</span>
-          <input class="combo-win-input" type="number" min="0" max="5000" step="10"
-                 value="${win}" data-cwin="1" data-mid="${m.id}">
-          <span class="unit">ms</span>
-        </label>
-        <span class="chk mode word ${consume ? "on" : ""}" data-cconsume="1" data-mid="${m.id}"
-              title="Consume — while the combo is held, its keys do not fire their own mappings. Each key is held back for the window above, so it is delayed by that long when pressed on its own.">Consume</span>
-        ${consume && Number(win) === 0 ? `<span class="combo-warn" title="Two keys can never arrive in the same USB frame, so whichever one you press first would be sent to the PC before the combo forms — a real, brief keypress or mouse click. The firmware avoids that by holding the key back until the window runs out, but a window of 0 gives it no deadline to wait for. Set a window (50 ms is a good start) or turn Consume off.">Set a window — Consume with 0 leaks the first key</span>` : ""}
-        ${off ? `<span class="combo-off-tag" title="Combos are switched off in Settings — this row is kept in your config but is NOT sent to the device">Not sent — combos off</span>` : ""}
-      </div>`;
   }
 
   /* A mapping whose OUTPUT is a layer (usage page 0xFFF1) has one layer FORCED, because the
@@ -129,34 +106,17 @@
   }
 
   function branchHtml(m) {
-    const isCombo = m.inputs.length > 1;
-    const canAdd = m.inputs.length < 4;
-    const nodes = m.inputs.slice(1).map((code, idx) => {
-      const i = idx + 1;
-      return `<div class="wire-node">
-        ${usageBtnHtml(code, { mid: m.id, role: "input", i })}
-        <button class="chip-x" data-rmin="1" data-mid="${m.id}" data-i="${i}" title="Remove this combo key">${ICON.x}</button>
-      </div>`;
-    }).join('<span class="wire-plus-join">+</span>');
-    const add = canAdd
-      ? `<button class="combo-add wire-add" data-addin="1" data-mid="${m.id}" title="${isCombo ? "Add another key to this combo" : "Drop a key on this branch — fires only when pressed together"}">${ICON.plus}</button>`
-      : "";
     const t = tintById(m.tint);
     const style = m.tint ? `style="background:${t.fill}"` : "";
     const off = m.enabled ? "" : "disabled";
-    // An unfinished row is NOT sent to the device (see translate.js isIncomplete): no output
-    // chosen, or a combo key still on its 0x00000000 placeholder — an AND with a key that can
-    // never be pressed would silently never fire. Say so on the row, before Save.
-    const needsOutput = m.output === "0x00000000";
-    const needsKey = isCombo && m.inputs.some((c) => c === "0x00000000");
-    const unfinished = needsOutput || needsKey;
-    const why = needsKey && needsOutput ? "Pick this combo's missing key and an output"
-      : needsKey ? "Pick the missing combo key" : "Pick an output";
+    // An unfinished row (no output picked) is NOT sent to the device — see translate.js
+    // isIncomplete. Say so on the row, before Save.
+    const unfinished = m.output === "0x00000000";
+    const why = "Pick an output";
     return `
-      <div class="wg-branch ${isCombo ? "is-combo" : "is-solo"} ${off} ${unfinished ? "unfinished" : ""}" data-mid="${m.id}" draggable="true" ${style}>
-        <div class="wire-track branch-wire" title="${isCombo ? "Combo branch — these keys must be pressed together" : "This button pressed on its own"}">
+      <div class="wg-branch is-solo ${off} ${unfinished ? "unfinished" : ""}" data-mid="${m.id}" draggable="true" ${style}>
+        <div class="wire-track branch-wire" title="This button's behavior">
           <span class="wire-line"></span>
-          <div class="wire-on">${nodes}${add}</div>
         </div>
         <div class="map-arrow">${ICON.arrow}</div>
         <div class="output-cell">${usageBtnHtml(m.output, { mid: m.id, role: "output" })}</div>
@@ -175,7 +135,6 @@
           <button class="icon-btn" data-clone="1" data-mid="${m.id}" title="Clone">${ICON.clone}</button>
           <button class="icon-btn del" data-del="1" data-mid="${m.id}" title="Delete">${ICON.x}</button>
         </div>
-        ${isCombo ? comboOptsHtml(m) : ""}
         ${m.enabled ? "" : `<div class="disabled-badge">Disabled</div>`}
         ${unfinished && m.enabled ? `<div class="unfinished-badge" title="This row is not sent to the device until it is complete">${why}</div>` : ""}
       </div>`;
@@ -185,9 +144,8 @@
     const code = group.code;                       // the real usage (group.key may be an unset sentinel)
     const empty = !code || code === UNSET;
     const forked = group.members.length > 1 ? "forked" : "";
-    const combos = group.members.filter((m) => m.inputs.length > 1).length;
     const meta = group.members.length > 1
-      ? `<span class="trunk-meta">${group.members.length} ways${combos ? ` · ${combos} combo` : ""}</span>`
+      ? `<span class="trunk-meta">${group.members.length} ways</span>`
       : "";
     // the exact rows this trunk owns — the picker must rewire ONLY these, never every row that
     // happens to share the same code (which, for unset rows, would be all of them)
@@ -205,7 +163,7 @@
         </div>
         <div class="wg-branches">
           <div class="wg-rows">${group.members.map(branchHtml).join("")}</div>
-          ${empty ? "" : `<button class="wg-add" data-addbranch="${code}" title="Add another behavior for this button — pressed alone or as a combo">${ICON.plus}</button>`}
+          ${empty ? "" : `<button class="wg-add" data-addbranch="${code}" title="Add another behavior for this button">${ICON.plus}</button>`}
         </div>
       </div>`;
   }
@@ -217,7 +175,7 @@
       <div class="wire-head">
         <div class="wh-trunk sortable" data-sort="input" title="Sort by input button">Input button${sortArrow("input")}</div>
         <div class="wh-cols">
-          <div>Pressed alone / in a combo</div>
+          <div>Behavior</div>
           <div class="mh-arrow"></div>
           <div class="sortable" data-sort="output" title="Sort by output">Output${sortArrow("output")}</div>
           <div class="sortable" data-sort="layers" title="Sort by layer">Layers · Modes${sortArrow("layers")}</div>
@@ -271,7 +229,7 @@
       <div class="panel-head">
         <div>
           <div class="panel-title">Mappings</div>
-          <div class="panel-sub">Each input button lives in one cell. The wire forks into a separate path for every behavior — alone, or as a combo.</div>
+          <div class="panel-sub">Each input button lives in one cell. The wire forks into a separate path for every behavior.</div>
         </div>
       </div>
       <div class="panel-body">
@@ -356,35 +314,12 @@
         port: role === "input" ? (m.source_port || 0) : (m.target_port || 0),
         onPort: (p) => { if (role === "input") m.source_port = p; else m.target_port = p; },
         onSelect: (code) => {
-          if (role === "input") {
-            // no duplicate keys within one combo
-            if (code !== "0x00000000" && m.inputs.some((c, j) => j !== i && c === code)) {
-              toast("That key is already in this combo");
-              return;
-            }
-            m.inputs[i] = code;
-          } else m.output = code;
+          if (role === "input") m.inputs[i] = code; else m.output = code;
           refresh();
         },
       });
     }));
 
-    // add combo input
-    $$('[data-addin]', root).forEach((b) => b.addEventListener("click", () => {
-      const m = findMap(b.dataset.mid);
-      if (m.inputs.length >= 4) return;
-      m.inputs.push("0x00000000");
-      refresh();
-      toast(m.inputs.length === 2 ? "Combo created — press both keys together" : "Combo key added");
-    }));
-
-    // remove combo input
-    $$('[data-rmin]', root).forEach((b) => b.addEventListener("click", () => {
-      const m = findMap(b.dataset.mid);
-      m.inputs.splice(+b.dataset.i, 1);
-      if (m.inputs.length === 0) m.inputs = ["0x00000000"];
-      refresh();
-    }));
 
     // move up/down
     $$('[data-move]', root).forEach((b) => b.addEventListener("click", () => {
@@ -443,22 +378,6 @@
       m.scale = parseFloat(inp.value) || 0;
     }));
 
-    // combo timing window (ms; 0 = no window)
-    $$('[data-cwin]', root).forEach((inp) => inp.addEventListener("change", () => {
-      const m = findMap(inp.dataset.mid);
-      if (!m) return;
-      const v = Math.max(0, Math.min(5000, Math.round(+inp.value) || 0));
-      m.comboWindow = v;
-      inp.value = v;
-    }));
-
-    // combo consume: while the combo is held, its keys don't fire their own mappings
-    $$('[data-cconsume]', root).forEach((el) => el.addEventListener("click", () => {
-      const m = findMap(el.dataset.mid);
-      if (!m) return;
-      m.comboConsume = !(m.comboConsume === true);
-      refresh();
-    }));
 
     // tint picker
     $$('[data-tint]', root).forEach((b) => b.addEventListener("click", (e) => {

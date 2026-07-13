@@ -256,8 +256,7 @@ async function handleConn(act) {
       if (!ok) { toast("Save cancelled"); return; }
     }
     // A usage the device reports at a CONSTANT non-zero value is a vendor field, not a control.
-    // In a combo it is fatal: its "press" happened once at enumeration and never again, so the
-    // timing window can never be satisfied and the combo can NEVER fire — silently. Refuse.
+    // Mapping one does nothing: it never goes up or down, so the mapping can never trigger.
     const stuck = window.HRX_MON_STUCK || new Set();
     if (stuck.size) {
       const bad = APP.mappings.filter((m) => (m.inputs || []).some((u) => stuck.has(u)));
@@ -265,7 +264,7 @@ async function handleConn(act) {
         const list = bad.map((m) => (m.inputs || []).filter((u) => stuck.has(u)).join(", ")).join("; ");
         const ok = window.confirm(
           "These mappings use a usage your device reports as a CONSTANT value: " + list + ".\n\n" +
-          "That is a vendor field, not a button — it never goes up or down. A combo built on it " +
+          "That is a vendor field, not a button — it never goes up or down, so a mapping on it " +
           "can NEVER fire, and with Consume on it will interfere with the other keys in it.\n\n" +
           "Remove it (recommended), or save anyway?\n\nOK = save anyway   Cancel = go back and fix it");
         if (!ok) { toast("Save cancelled — remove the constant usage from the highlighted rows"); return; }
@@ -277,17 +276,9 @@ async function handleConn(act) {
       if (res && res.ok) {
         const n = (config.mappings && config.mappings.length) || 0;
         let msg = "Saved " + n + " mappings to device";
-        // never drop a combo silently — say so
-        if (config.combo_skipped) {
-          msg += " — " + config.combo_skipped + " combo(s) NOT sent (Combos are switched off in Settings)";
-        }
-        if (config.combo_overflow) {
-          msg += " — " + config.combo_overflow + " combo(s) NOT sent (the firmware holds at most " +
-            window.HRX_TRANSLATE.NCOMBOS + ")";
-        }
         if (config.incomplete) {
           msg += " — " + config.incomplete + " unfinished row(s) NOT sent (pick their output, " +
-            "and every key of a combo)";
+            "with an output picked)";
         }
         toast(msg);
       } else {

@@ -150,12 +150,12 @@
 
   /* WHAT YOU JUST PRESSED. The Monitor watches live HID traffic, so by the time you open this
      picker it already knows exactly which buttons your hardware has. Those go first — you should
-     not have to hunt through a catalog of every usage in existence to build a combo out of two
-     buttons you can physically press.
+     not have to hunt through a catalog of every usage in existence to map a button you can
+     physically press.
 
      Usages the device reports at a CONSTANT value are excluded: they are vendor fields, not
-     controls (one mouse sits at 0xffa00008 = 1 forever), and a combo built on one can never
-     fire. They are still visible in the Monitor, flagged — just not offered as something to map. */
+     controls (one mouse sits at 0xffa00008 = 1 forever), so a mapping on one can never trigger.
+     They are still visible in the Monitor, flagged — just not offered as something to map. */
   function liveCategory() {
     if (state.mode !== "input") return null;                 // you can only map what you PRESS
     const rows = (window.HRX_MON_LIVE && window.HRX_MON_LIVE()) || [];
@@ -163,7 +163,7 @@
     const usable = rows.filter((r) => !stuck.has(r.usage));
     if (!usable.length) return null;
 
-    // real buttons (they swing 0..1) before axes — a combo is built out of buttons
+    // real buttons (they swing 0..1) sort before axes
     const isButton = (r) => r.min >= 0 && r.max <= 1;
     usable.sort((a, b) => (isButton(b) - isButton(a)) || a.usage.localeCompare(b.usage));
 

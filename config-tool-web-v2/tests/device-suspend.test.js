@@ -64,9 +64,8 @@ function makeFake({ failOnCommand } = {}) {
 const CONFIG = {
   version: 18,
   mappings: [
-    { source_usage: "0x000c00e9", target_usage: "0xfffb0001", scaling: 50, layers: [0], combo_consume: true },
-    { source_usage: "0x000c00ea", target_usage: "0xfffb0001", scaling: 50, layers: [0], combo_consume: true },
-    { source_usage: "0xfffb0001", target_usage: "0x000c00e2", scaling: 1000, layers: [0] },
+    { source_usage: "0x000c00e9", target_usage: "0x000c00e2", scaling: 1000, layers: [0],
+      sticky: false, tap: false, hold: false, source_port: 0, target_port: 0 },
   ],
   macros: Array.from({ length: 32 }, () => []),
   expressions: ["", "", "", "", "", "", "", ""],
@@ -91,18 +90,6 @@ test("a clean save suspends and resumes the device", async () => {
   assert.ok(fake.sent.includes(CMD.SUSPEND), "must suspend before rewriting the config");
   assert.ok(fake.sent.includes(CMD.RESUME), "must resume afterwards");
   assert.ok(fake.sent.lastIndexOf(CMD.RESUME) > fake.sent.indexOf(CMD.SUSPEND), "resume comes after suspend");
-  await D.disconnect();
-});
-
-test("the combo is written as 3 ADD_MAPPING commands", async () => {
-  const fake = makeFake();
-  const D = loadDevice(fake);
-  await D.connect();
-  fake.sent.length = 0;
-
-  await D.saveToDevice(CONFIG);
-  const adds = fake.sent.filter((c) => c === CMD.ADD_MAPPING).length;
-  assert.strictEqual(adds, 3, "2 members + 1 trigger");
   await D.disconnect();
 });
 

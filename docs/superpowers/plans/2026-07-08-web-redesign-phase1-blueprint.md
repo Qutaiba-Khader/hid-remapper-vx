@@ -1,3 +1,6 @@
+> **NOTE (2026-07-13): combos were REMOVED from this project.** Any combo content below is
+> historical — the feature no longer exists in the firmware, the web tool or any release.
+
 # Phase 1 Blueprint — port the working tool's logic into the new UI
 
 **Deliverable of Phase 1** (recon done 2026-07-08). Drives Phases 2–5.

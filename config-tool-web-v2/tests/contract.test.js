@@ -16,43 +16,6 @@ const FW = (f) => fs.readFileSync(path.join(__dirname, "..", "..", "firmware", "
 const T = require("../js/translate.js");
 const D = require("../js/device.js");
 
-test("CONFIG_VERSION matches the firmware (must stay 18 — combos add no persisted field)", () => {
-  const m = FW("config.cc").match(/CONFIG_VERSION\s*=\s*(\d+)/);
-  assert.ok(m, "could not find CONFIG_VERSION in firmware/src/config.cc");
-  const fwVersion = Number(m[1]);
-  assert.strictEqual(fwVersion, 18, "the whole combo design depends on this staying 18");
-  assert.strictEqual(D.CONFIG_VERSION, fwVersion, "device.js disagrees with the firmware");
-  assert.strictEqual(T.CONFIG_VERSION, fwVersion, "translate.js disagrees with the firmware");
-});
-
-test("the combo usage page matches the firmware", () => {
-  const m = FW("remapper.h").match(/#define\s+COMBO_USAGE_PAGE\s+(0x[0-9A-Fa-f]+)/);
-  assert.ok(m, "COMBO_USAGE_PAGE not found in firmware/src/remapper.h");
-  const fwPage = parseInt(m[1], 16) >>> 0;
-  assert.strictEqual(fwPage, 0xfffb0000);
-  assert.strictEqual(T.COMBO_USAGE_PAGE, fwPage, "translate.js targets a different page than the firmware reads");
-});
-
-test("the mapping flag bits match the firmware (consume MUST be bit 3)", () => {
-  const src = FW("remapper.cc");
-  const bit = (name) => {
-    const m = src.match(new RegExp("MAPPING_FLAG_" + name + "\\s*=\\s*1\\s*<<\\s*(\\d+)"));
-    assert.ok(m, "MAPPING_FLAG_" + name + " not found in firmware/src/remapper.cc");
-    return 1 << Number(m[1]);
-  };
-  assert.strictEqual(D.STICKY_FLAG, bit("STICKY"));
-  assert.strictEqual(D.TAP_FLAG, bit("TAP"));
-  assert.strictEqual(D.HOLD_FLAG, bit("HOLD"));
-  assert.strictEqual(D.COMBO_CONSUME_FLAG, bit("COMBO_CONSUME"),
-    "the consume bit moved — every combo would be written with the wrong flag");
-});
-
-test("NCOMBOS matches the firmware (the web tool must not offer more than the device holds)", () => {
-  const m = FW("remapper.cc").match(/#define\s+NCOMBOS\s+(\d+)/);
-  assert.ok(m, "NCOMBOS not found in firmware/src/remapper.cc");
-  assert.strictEqual(T.NCOMBOS, Number(m[1]));
-});
-
 test("the expression opcode table matches the firmware Op enum exactly", () => {
   const enumSrc = FW("types.h");
   const start = enumSrc.indexOf("enum class Op");

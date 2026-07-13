@@ -52,11 +52,6 @@ function mk(inputs, output, opts = {}) {
     hold: !!opts.hold,
     scale: opts.scale != null ? opts.scale : 1.0,
     tint: opts.tint || null,
-    // combo-only (ignored on single-input rows): all inputs must go down within
-    // comboWindow ms (0 = no timing check); comboConsume stops the member keys from
-    // firing their own mappings while the combo is held.
-    comboWindow: opts.comboWindow == null ? 50 : opts.comboWindow,
-    comboConsume: opts.comboConsume === true,
   };
 }
 
@@ -91,7 +86,6 @@ const APP = {
     gpioDebounce: 5,         // ms
     macroEntryDuration: 1,   // ms
     passthrough: [true, true, true, true, true, true, true, true], // 0b11111111 — all 8 layers
-    combosEnabled: true,
     normalizeGamepad: true,
     gpioOutputMode: 0,       // 0 = push-pull, 1 = open-drain
     ignoreAuthDevInputs: false,

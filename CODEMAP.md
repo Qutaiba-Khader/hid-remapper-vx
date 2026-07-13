@@ -28,14 +28,10 @@ The firmware is one codebase compiled into several executables. Board/role-speci
 | --- | --- | --- |
 | Shared main loop | `src/main.cc` | `main()` — calls `read_report()` (board hook) → engine → `write_gpio()` → `write_rgb_led()` |
 | Mapping engine | `src/remapper.cc` | `set_mapping_from_config()`, `process_mapping()`, `input_state[]`, sticky/tap/hold tables |
-| Combo engine (AND gate) | `src/remapper.cc` | `evaluate_combos()`, `combos[]`, `combo_consumed[]`, `MAPPING_FLAG_COMBO_CONSUME`, `NCOMBOS`, all under `#ifdef COMBO_ENABLED` |
-| Combo usage page | `src/remapper.h` | `COMBO_USAGE_PAGE 0xFFFB0000` |
-| Combos (web) | `config-tool-web-v2/js/translate.js` | `appComboToConfigMappings()`, `isComboUsage()`, `configToApp()` fold |
 | Web v2: device I/O | `config-tool-web-v2/js/device.js` | `connect()`, `loadFromDevice()`, `saveToDevice()` (SUSPEND→CLEAR_*→ADD_*→PERSIST→**RESUME in a finally**), `onMonitor()`, `onDisconnect()` |
 | Web v2: unit conversions | `config-tool-web-v2/js/translate.js` | `exprToDevice()`/`exprToApp()` (expression constants are **×1000 fixed point**), ms↔µs, `scale`↔`scaling` |
 | Web v2: usage picker | `config-tool-web-v2/js/picker.js` | `openPicker({mode,current,onSelect,port,onPort})` — uses `.picker-scrim`, **not** `.modal-scrim` (which expressions.css overrides) |
 | Web v2: tests | `config-tool-web-v2/tests/` | `flow.test.js` (whole user journey vs a fake device), `contract.test.js` (reads the firmware source), `no-dummy-data.test.js`, `ui-guards.test.js` |
-| Firmware: tests | `firmware/sim/` | `engine.js` = hand-port of the combo engine + mapping pipeline; `combo.test.js` = 36 tests incl. drift guards that read `remapper.cc`. Run `node --test firmware/sim/*.test.js`. The firmware can't run on Windows — this is the only way to *execute* the logic before flashing. |
 | Persisted config + commands | `src/config.cc` | `CONFIG_VERSION` (**18**), config get/set command handlers |
 | Custom usage pages | `src/remapper.h` | `RGB_LED_USAGE_PAGE 0xFFFA0000`, GPIO/MACRO/EXPR/… page defines |
 | RGB LED driver | `src/main.cc` | `rgb565_to_wire()`, `rgb_led_init()`, `write_rgb_led()`, `RGB_LED_BRIGHTNESS` (64), `#ifdef RGB_LED_ENABLED` block |

@@ -1,5 +1,5 @@
 /* ============================================================
-   HID Remapper VX — Mapping rows, Combos, Picker, Quick Actions
+   HID Remapper VX — Mapping rows, Picker, Quick Actions
    ============================================================ */
 
 /* column header */
@@ -37,7 +37,6 @@
 .map-row:hover { background: var(--hover); border-color: var(--border-soft); }
 .map-row.dragging { opacity: 0.5; }
 .map-row.drag-over { box-shadow: 0 -2px 0 0 var(--purple-hi); }
-/* combo state is shown by the wire on the line, not a separate row fill */
 
 /* row controls (reorder/clone/delete) */
 .row-ctrls { display: flex; align-items: center; gap: 3px; }
@@ -106,24 +105,12 @@
 .usage-btn.empty { color: var(--label); font-style: italic; }
 .usage-btn .chev { margin-left: auto; opacity: 0.7; flex: none; }
 
-/* ---- input cell with combo chain ---- */
+/* ---- input cell ---- */
 .input-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
-.input-cell .combo-chip { flex: 1 1 130px; }
-.solo-tag + .combo-chip { min-width: 120px; }
 
-.combo-chip { position: relative; display: flex; align-items: center; min-width: 0; flex: 1 1 120px; }
-.combo-chip .usage-btn { padding-right: 26px; }
-.chip-x {
-  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
-  width: 16px; height: 16px; border-radius: 5px;
-  display: grid; place-items: center;
-  background: var(--err-bg); border: 1px solid #5a2326; color: #ffb3ae;
-  cursor: pointer; padding: 0;
-}
-.chip-x svg { width: 9px; height: 9px; }
-.chip-x:hover { background: #3a1519; }
 
-/* the "+" combo add button — THE hero new element */
+/* the "+" add button (also used by the macro editor to add a key to a step) */
+/* also used by the macro editor to add a key to a step */
 .combo-add {
   width: 26px; height: 26px; flex: none;
   display: grid; place-items: center;
@@ -137,28 +124,8 @@
 .combo-add svg { width: 14px; height: 14px; }
 .combo-add:hover { transform: scale(1.08); box-shadow: 0 5px 16px var(--purple-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
 
-/* combo-only per-row controls: timing window + consume. Spans the whole grid row
-   so it sits under the mapping instead of stealing one of the 7 columns. */
-.combo-opts {
-  grid-column: 1 / -1;
-  display: flex; align-items: center; gap: 12px;
-  margin-top: 6px; padding: 6px 0 2px 92px;
-  border-top: 1px dashed rgba(106, 60, 255, 0.35);
-}
-.wg-branch .combo-opts { padding-left: 0; }
-.combo-win { display: inline-flex; align-items: center; gap: 5px; }
 /* the Consume chip lives outside a .chk-row.seg, so it must opt out of .chk's
    fixed 23px square or the label overflows its box */
-.combo-opts .chk.word {
-  width: auto; height: auto; padding: 4px 9px;
-  font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase;
-}
-.combo-win-input {
-  width: 58px; padding: 3px 6px;
-  background: var(--bg-deep); border: 1px solid var(--border-bright); border-radius: 6px;
-  color: #fff; font-family: var(--font-mono); font-size: 11px;
-}
-.combo-win .unit { font-family: var(--font-mono); font-size: 9.5px; color: #fff; opacity: 0.8; }
 /* ============================================================
    MACROS — 32 slots, each an editable sequence of steps
    ============================================================ */
@@ -263,32 +230,12 @@
   border-radius: 6px; padding: 3px 7px; margin-left: 6px;
 }
 
-.combo-off-tag {
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
-  letter-spacing: 0.4px; text-transform: uppercase;
-  color: #fff; background: var(--err-bg); border: 1px solid #5a2326;
-  border-radius: 6px; padding: 4px 8px;
-}
 
 /* Consume with a 0 window: the firmware has no deadline to defer the first key to, so it leaks
-   a real (brief) keypress / mouse click before the combo forms. Warn, don't silently allow. */
-.combo-warn {
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
-  letter-spacing: 0.4px; text-transform: uppercase;
-  color: #fff; background: #6b4a12; border: 1px solid #8a6316;
-  border-radius: 6px; padding: 4px 8px; cursor: help;
-}
+   Warn, don't silently allow. */
 
-/* COMBO badge prefix (badge layout) */
-.combo-badge {
-  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
-  letter-spacing: 1px; text-transform: uppercase;
-  color: #fff; background: linear-gradient(160deg, var(--purple-hi), var(--purple-2));
-  border-radius: 5px; padding: 3px 6px; flex: none;
-  box-shadow: 0 2px 8px var(--purple-glow);
-}
 
-/* ---- alone vs combo clarity ---- */
+/* ---- row clarity ---- */
 /* single key: subtle "Solo" tag — fires on its own */
 .solo-tag {
   display: inline-flex; align-items: center; gap: 4px; flex: none;
@@ -609,12 +556,10 @@
 @keyframes toastIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ============================================================
-   WIRE LAYOUT (default) — one cell: key ─(combo on the line)─▶ output
-   Solo = empty line. Combo = extra key(s) attached to the SAME line.
+   WIRE LAYOUT — one cell: key ─▶ output
    ============================================================ */
 .input-cell.wire { flex-wrap: nowrap; gap: 0; align-items: center; }
 .input-cell.wire .wire-start { flex: 1 1 auto; min-width: 88px; }
-.input-cell.wire .wire-start .combo-chip { flex: 1 1 auto; }
 .input-cell.wire .usage-btn { font-size: 12px; padding: 7px 9px; }
 .wire-node { max-width: 132px; }
 .wire-track {
@@ -626,10 +571,6 @@
   position: absolute; left: 0; right: -12px; top: 50%; transform: translateY(-50%);
   border-top: 2px dashed var(--border-bright); z-index: 0; pointer-events: none;
 }
-.input-cell.wire.is-combo .wire-line {
-  border-top-style: solid; border-top-color: var(--purple-hi);
-  box-shadow: 0 0 9px var(--purple-glow);
-}
 .wire-on { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .wire-node { position: relative; display: flex; align-items: center; min-width: 0; max-width: 150px; }
 .wire-node .usage-btn { padding-right: 26px; }
@@ -640,7 +581,7 @@
   text-shadow: 0 0 6px var(--purple-glow);
 }
 .combo-add.wire-add { flex: none; }
-/* solo: the + is a dashed invitation sitting on the empty line — "drop a key to combo" */
+/* the branch wire */
 .input-cell.wire.is-solo .combo-add.wire-add {
   background: var(--bg-deep); border: 1px dashed var(--purple-hi); color: var(--purple-hi); box-shadow: none;
 }
@@ -713,7 +654,6 @@
 }
 .row-ctrls.compact { display: flex; gap: 3px; }
 .branch-wire { min-height: 34px; }
-.wg-branch.is-combo .wire-line { border-top-style: solid; border-top-color: var(--purple-hi); box-shadow: 0 0 9px var(--purple-glow); }
 .wg-branch.is-solo .combo-add.wire-add { background: var(--bg-deep); border: 1px dashed var(--purple-hi); color: var(--purple-hi); box-shadow: none; }
 .wg-branch.is-solo .combo-add.wire-add:hover { background: rgba(106, 60, 255, 0.14); transform: scale(1.08); }
 
@@ -885,8 +825,7 @@
 }
 
 /* A usage the device reports with a CONSTANT value (min == max, never 0) is a vendor field,
-   not a control. A combo built on one can never fire: its "press" happened once at
-   enumeration and never again. Flag it wherever it can hurt. */
+   not a control — a mapping on it can never trigger. Flag it wherever it can hurt. */
 .mon-warn, .stuck-warn {
   font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.4px; text-transform: uppercase;

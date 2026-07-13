@@ -22,9 +22,6 @@
 const uint8_t MAPPING_FLAG_STICKY = 1 << 0;
 const uint8_t MAPPING_FLAG_TAP = 1 << 1;
 const uint8_t MAPPING_FLAG_HOLD = 1 << 2;
-// Only meaningful on a mapping whose TARGET is on the combo page: while the combo is
-// held, this source key is "consumed" and stops firing its own mappings. Bits 4-7 free.
-const uint8_t MAPPING_FLAG_COMBO_CONSUME = 1 << 3;
 
 const uint8_t V_RESOLUTION_BITMASK = (1 << 0);
 const uint8_t H_RESOLUTION_BITMASK = (1 << 2);
@@ -93,18 +90,6 @@ uint32_t used_state_slots = 0;
 
 std::unordered_map<uint32_t, int32_t> accumulated;  // usage -> relative movement, * 1000
 uint8_t layer_state_mask = 1;
-
-#ifdef COMBO_ENABLED
-#define NCOMBOS 16
-std::vector<combo_t> combos;               // index = combo id - 1
-uint8_t combo_consumed[MAX_INPUT_STATES];  // per-frame: this input slot is owned by an active combo
-uint8_t combo_deferred[MAX_INPUT_STATES];       // sticky: this key's press was held back and never sent
-uint8_t combo_fired[MAX_INPUT_STATES];          // that held-back press was spent ON a combo
-uint64_t combo_replay_until[MAX_INPUT_STATES];  // us: replaying a press we owe the host as a tap
-// How long a swallowed press is replayed for. Long enough that the host reliably sees a press
-// AND a release (it polls every 1-8ms), short enough to feel instant.
-#define COMBO_REPLAY_US 15000
-#endif
 
 std::vector<int32_t*> relative_usages;  // input_state pointers
 
@@ -440,14 +425,6 @@ void set_mapping_from_config() {
     reverse_mapping.clear();
     reverse_mapping_macros.clear();
     reverse_mapping_layers.clear();
-#ifdef COMBO_ENABLED
-    combos.clear();
-    combos.resize(NCOMBOS);
-    memset(combo_consumed, 0, sizeof(combo_consumed));
-    memset(combo_deferred, 0, sizeof(combo_deferred));
-    memset(combo_fired, 0, sizeof(combo_fired));
-    memset(combo_replay_until, 0, sizeof(combo_replay_until));
-#endif
 #ifdef RGB_LED_ENABLED
     active_led_targets.clear();
 #endif
@@ -467,11 +444,6 @@ void set_mapping_from_config() {
         uint8_t orig_source_port = source_port;
         if (((mapping.source_usage & 0xFFFF0000) == EXPR_USAGE_PAGE) ||
             ((mapping.source_usage & 0xFFFF0000) == REGISTER_USAGE_PAGE) ||
-#ifdef COMBO_ENABLED
-            // a combo's state lives on port 0 (that's where its members write it), so a
-            // trigger mapping must read it from port 0 too
-            ((mapping.source_usage & 0xFFFF0000) == COMBO_USAGE_PAGE) ||
-#endif
             ((mapping.source_usage & 0xFFFF0000) == GPIO_USAGE_PAGE)) {
             source_port = 0;
         }
@@ -498,39 +470,6 @@ void set_mapping_from_config() {
             uint16_t pin = mapping.source_usage & 0xFFFF;
             gpio_in_mask_ |= 1 << pin;
         }
-
-#ifdef COMBO_ENABLED
-        // A mapping whose TARGET is on the combo page is a combo MEMBER. The combo fires
-        // only when every member is active (an AND), so members must NOT be pushed into
-        // reverse_mapping_map -- that would sum them, which is an OR.
-        if ((mapping.target_usage & 0xFFFF0000) == COMBO_USAGE_PAGE) {
-            uint16_t id = mapping.target_usage & 0xFFFF;
-            if ((id >= 1) && (id <= NCOMBOS) &&
-                assign_state_slot(mapping.source_usage, source_port, false) &&
-                assign_state_slot(mapping.target_usage, 0, false)) {
-                combo_t& combo = combos[id - 1];
-                combo.out_state = get_state_ptr(mapping.target_usage, 0);
-                // the window rides in the FIRST member's scaling, in ms; get_time() is µs
-                if (combo.members.empty()) {
-                    combo.window_us = (mapping.scaling > 0) ? ((uint32_t) mapping.scaling * 1000) : 0;
-                }
-                combo.members.push_back((combo_member_t){
-                    .input_state = get_state_ptr(mapping.source_usage, source_port),
-                    .layer_mask = layer_mask,
-                    .consume = (mapping.flags & MAPPING_FLAG_COMBO_CONSUME) != 0,
-                    .rise_at = 0,
-                });
-                // NOTE: deliberately do NOT touch mapped_on_layers here. Being part of a combo
-                // must not, on its own, stop a key from working when pressed alone -- otherwise
-                // (with unmapped passthrough on, which is the default) adding a combo would
-                // silently kill its member keys. Suppression is the job of the *consume* flag,
-                // which is dynamic: combo_consumed[] is set only while the combo is actually
-                // held, and the passthrough source uses this same input_state slot (port 0),
-                // so is_consumed() suppresses it exactly when it should.
-            }
-            continue;
-        }
-#endif
 
         if (assign_state_slot(mapping.source_usage, source_port, false)) {
             reverse_mapping_map[((uint64_t) target_port << 32) | mapping.target_usage].push_back((map_source_t){
@@ -1189,177 +1128,6 @@ int32_t eval_expr(uint8_t expr, uint64_t now, bool auto_repeat) {
     return 0;
 }
 
-#ifdef COMBO_ENABLED
-// A combo is the AND of its members. Runs before the layer/macro/output loops so a combo
-// can drive a layer and so consumption suppresses the member keys' own mappings.
-// Writes 1/0 into each combo's own input-state slot -- which means sticky/tap/hold/scaling/
-// layers on the trigger mapping all work through the existing machinery, for free.
-static void evaluate_combos(uint64_t now) {
-    memset(combo_consumed, 0, sizeof(combo_consumed));
-
-    // A REPLAYED TAP. If we held a key back and the user let go before the window expired, the
-    // combo never happened and we still OWE them that press. It cannot be sent retroactively,
-    // so send it NOW as a real press-and-release.
-    //
-    // Without this, every ordinary click of a consuming member is SWALLOWED: a mouse click is
-    // 30-50ms and the window is 50ms, so you release before the deferral ever gives the key
-    // back. The symptom on hardware is "the button only works if I hold it down".
-    for (auto const& combo : combos) {
-        for (auto const& member : combo.members) {
-            size_t slot = member.input_state - input_state;
-            if (combo_replay_until[slot] == 0) {
-                continue;
-            }
-            if (now >= combo_replay_until[slot]) {
-                combo_replay_until[slot] = 0;
-                *member.input_state = 0;  // end of the tap: release
-            } else {
-                *member.input_state = 1;  // hold the replayed press
-            }
-        }
-    }
-
-    for (size_t i = 0; i < combos.size(); i++) {
-        combo_t& combo = combos[i];
-        if (combo.members.empty() || (combo.out_state == NULL)) {
-            continue;
-        }
-
-        bool all_down = true;
-        uint64_t first_rise = UINT64_MAX;
-        uint64_t last_rise = 0;
-
-        for (auto& member : combo.members) {
-            // a key we are replaying is not physically down -- it must not drive the combo
-            if (combo_replay_until[member.input_state - input_state] != 0) {
-                all_down = false;
-                continue;
-            }
-            // remember when this member was last pressed
-            if ((*member.input_state != 0) && (*(member.input_state + PREV_STATE_OFFSET) == 0)) {
-                member.rise_at = now;
-            }
-            if ((*member.input_state == 0) || !(layer_state_mask & member.layer_mask)) {
-                all_down = false;
-                continue;
-            }
-            if (member.rise_at < first_rise) {
-                first_rise = member.rise_at;
-            }
-            if (member.rise_at > last_rise) {
-                last_rise = member.rise_at;
-            }
-        }
-
-        int32_t new_out = 0;
-
-        if (!all_down) {
-            combo.latched = false;
-
-            // PENDING: some members are down and the window has not run out yet, so we do not
-            // know yet whether this combo will complete. Hold back its consuming members'
-            // output until we do.
-            //
-            // Without this, consume is broken in practice: two keys can never land in the same
-            // 1ms USB frame, so the member that lands first is passed through to the host for
-            // the few milliseconds before the other one arrives and consumption kicks in. The
-            // host sees a real (very short) keypress or MOUSE CLICK every single time the combo
-            // is used. You cannot un-send a click, so the only fix is to not send it yet.
-            //
-            // The price is that a consuming member key is delayed by up to window_us when it is
-            // pressed on its own. That is the standard combo trade-off (QMK's COMBO_TERM).
-            // window_us == 0 means "no timing check", so there is no deadline to defer until and
-            // no deferral happens -- with a 0 window, consume still leaks the leading press.
-            if ((combo.window_us > 0) && (first_rise != UINT64_MAX) && ((now - first_rise) <= combo.window_us)) {
-                for (auto const& member : combo.members) {
-                    if (member.consume) {
-                        combo_consumed[member.input_state - input_state] = 1;
-                    }
-                }
-            }
-        } else {
-            // Fire once every member went down within the window; then LATCH, so the combo stays
-            // active while the keys are held even after the window has passed.
-            if (!combo.latched) {
-                combo.latched = (combo.window_us == 0) || ((last_rise - first_rise) <= combo.window_us);
-            }
-
-            new_out = combo.latched ? 1 : 0;
-
-            if (combo.latched) {
-                for (auto const& member : combo.members) {
-                    if (member.consume) {
-                        combo_consumed[member.input_state - input_state] = 1;
-                        // the press was SPENT on the combo -- we no longer owe a click for it,
-                        // so releasing must not replay a stray tap
-                        combo_fired[member.input_state - input_state] = 1;
-                    }
-                }
-            }
-        }
-
-        // Make the combo visible in the web tool's monitor. Without this the combo is a black
-        // box on real hardware: you can see the member keys go down and you can see (or fail to
-        // see) the output, with no way to tell which half is broken.
-        if (monitor_enabled && (*combo.out_state != new_out)) {
-            monitor_usage(COMBO_USAGE_PAGE | (i + 1), new_out, 0);
-        }
-
-        *combo.out_state = new_out;
-    }
-
-    // A key being replayed is never suppressed. (A PENDING combo consumes all of its consuming
-    // members, including ones that are up -- that would eat the replay we are in the middle of.)
-    for (auto const& combo : combos) {
-        for (auto const& member : combo.members) {
-            size_t slot = member.input_state - input_state;
-            if (combo_replay_until[slot] != 0) {
-                combo_consumed[slot] = 0;
-            }
-        }
-    }
-
-    // Deferral bookkeeping: decide what we still owe the host for each member.
-    for (auto const& combo : combos) {
-        for (auto const& member : combo.members) {
-            size_t slot = member.input_state - input_state;
-            if (combo_replay_until[slot] != 0) {
-                continue;
-            }
-
-            if (*member.input_state != 0) {
-                if (combo_consumed[slot]) {
-                    // held back: remember that the host has never seen this press
-                    if (*(member.input_state + PREV_STATE_OFFSET) == 0) {
-                        combo_deferred[slot] = 1;
-                    }
-                } else if (combo_deferred[slot]) {
-                    // still held, but the combo failed -- deliver it late, with a real rising
-                    // edge, so macros / tap-hold / sticky bound to the key still fire
-                    combo_deferred[slot] = 0;
-                    *(member.input_state + PREV_STATE_OFFSET) = 0;
-                }
-            } else {
-                // Released. If the press is still owed AND no combo used it, replay it as a tap.
-                if (combo_deferred[slot] && !combo_fired[slot]) {
-                    combo_replay_until[slot] = now + COMBO_REPLAY_US;
-                    *member.input_state = 1;                        // start the tap now...
-                    *(member.input_state + PREV_STATE_OFFSET) = 0;  // ...with a rising edge
-                }
-                combo_deferred[slot] = 0;
-                combo_fired[slot] = 0;
-            }
-        }
-    }
-}
-
-// true when this source's key is currently owned by an active combo that consumes it
-static inline bool is_consumed(const map_source_t& map_source) {
-    return (map_source.input_state != NULL) &&
-        combo_consumed[map_source.input_state - input_state];
-}
-#endif
-
 void process_mapping(bool auto_repeat) {
     if (suspended) {
         return;
@@ -1367,10 +1135,6 @@ void process_mapping(bool auto_repeat) {
 
     uint64_t now = get_time();
     frame_counter++;
-
-#ifdef COMBO_ENABLED
-    evaluate_combos(now);
-#endif
 
     for (auto& tap_hold : tap_hold_usages) {
         if ((*tap_hold.input_state != 0) && (*(tap_hold.input_state + PREV_STATE_OFFSET) == 0)) {
@@ -1409,11 +1173,6 @@ void process_mapping(bool auto_repeat) {
     for (auto const& rev_map : reverse_mapping_layers) {
         uint16_t i = rev_map.target & 0xFFFF;
         for (auto const& map_source : rev_map.sources) {
-#ifdef COMBO_ENABLED
-            if (is_consumed(map_source)) {
-                continue;
-            }
-#endif
             if (!map_source.sticky) {
                 if ((map_source.layer_mask & layer_state_mask) &&
                     (map_source.hold
@@ -1470,11 +1229,6 @@ void process_mapping(bool auto_repeat) {
             continue;
         }
         for (auto const& map_source : rev_map.sources) {
-#ifdef COMBO_ENABLED
-            if (is_consumed(map_source)) {
-                continue;
-            }
-#endif
             if ((layer_state_mask & map_source.layer_mask) &&
                 ((!map_source.tap && !map_source.hold && (*(map_source.input_state + PREV_STATE_OFFSET) == 0) && (*map_source.input_state != 0)) ||
                     (map_source.hold && map_source.tap_hold_state->hold && !map_source.tap_hold_state->prev_hold) ||
@@ -1506,11 +1260,6 @@ void process_mapping(bool auto_repeat) {
                     !(active_ports_mask & (1 << map_source.orig_source_port))) {
                     continue;
                 }
-#ifdef COMBO_ENABLED
-                if (is_consumed(map_source)) {
-                    continue;
-                }
-#endif
                 int32_t value = 0;
                 if (auto_repeat || map_source.is_relative) {
                     if (map_source.sticky) {
@@ -1544,11 +1293,6 @@ void process_mapping(bool auto_repeat) {
                     !(active_ports_mask & (1 << map_source.orig_source_port))) {
                     continue;
                 }
-#ifdef COMBO_ENABLED
-                if (is_consumed(map_source)) {
-                    continue;
-                }
-#endif
                 if (map_source.sticky) {
                     if (*map_source.sticky_state & map_source.layer_mask) {
                         value += 1 * map_source.scaling / 1000 - rev_map.default_value;

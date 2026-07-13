@@ -1,5 +1,24 @@
 # Changelog
 
+## Combos removed (2026-07-13)
+
+The native combo feature (usage page `0xFFFB`) has been **removed entirely** — from the firmware,
+the web tool, the docs and the releases. Releases `r2026-07-13`, `r2026-07-13b` and `r2026-07-13c`
+were deleted; **`r2026-07-06` is `latest` again**, so every firmware download link in the config
+tool serves combo-free firmware. `firmware/src/remapper.cc` is back to its pre-combo state.
+
+The redesigned web tool (`config-tool-web-v2/`) stays, minus combos — and keeps the fixes found
+while combos were being debugged:
+
+- the Monitor's **`+` button** works (it was being destroyed mid-click by its own live redraw —
+  the monitored device is the very mouse you are holding);
+- the Monitor no longer prints **`Port 255`** on every row (255 is `HUB_PORT_NONE` — "no hub");
+- usages the device reports at a **constant value** (one mouse sits at `0xffa00008` = 1 forever)
+  are flagged as "not a button" and are no longer offered as something to map;
+- the input picker lists **the buttons you actually pressed** ("Pressed on your device") first.
+
+If combos are ever wanted again, the work is in git history (`db2580b`..`2640dcc`).
+
 ## Web config tool v2 — the redesigned tool goes live (2026-07-13)
 
 `config-tool-web-v2/` is now a real, working tool (it was a static mock). Live at

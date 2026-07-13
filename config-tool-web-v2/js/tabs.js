@@ -21,7 +21,6 @@
     gpioDebounce: (s) => { s.gpioDebounce = DEF.gpioDebounce; },
     macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
     passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
-    combos: (s) => { s.combosEnabled = DEF.combosEnabled; },
     inputLabels: (s) => { s.inputLabels = DEF.inputLabels; },
     flags: (s) => {
       s.normalizeGamepad = DEF.normalizeGamepad;
@@ -57,7 +56,6 @@
     const s = APP.settings;
     const emuOpts = EMU.map((e, i) => `<option value="${i}" ${i === s.emulatedDevice ? "selected" : ""}>${e}</option>`).join("");
     const passToggles = s.passthrough.map((on, i) => toggleRow(`data-pass="${i}"`, on, "Layer " + i)).join("");
-    const combosOn = s.combosEnabled !== false;
 
     container.innerHTML = `
     <div class="panel">
@@ -73,11 +71,6 @@
           "What the remapper presents itself as to the host.",
           `<select class="select-hx" style="width:100%" id="emu">${emuOpts}</select>`)}
 
-        ${card("combos", `Combos <span class="section-tag" style="margin-left:6px">New</span>`,
-          "Fire one output when several inputs are held together. Each combo row carries its own timing window and Consume switch — set them on the Mappings tab. Turn this off and no combo is sent to the device.",
-          `${toggleRow('data-combos="1"', combosOn, combosOn ? "Combos enabled" : "Combos disabled")}
-           <div class="hint" style="margin-top:6px">Requires VX firmware with combo support (r2026-07-13 or newer). On older firmware combos are simply ignored.</div>`,
-          "highlight")}
 
         ${card("tapHold", "Tap-hold threshold",
           "Global timing that separates a tap from a hold.",
@@ -155,12 +148,6 @@
       t.classList.toggle("on");
     }));
 
-    const combosToggle = $('[data-combos]', container);
-    if (combosToggle) combosToggle.addEventListener("click", () => {
-      s.combosEnabled = s.combosEnabled === false;
-      toast(s.combosEnabled ? "Combos enabled" : "Combos disabled — combo rows will not be sent to the device");
-      rerender();
-    });
 
     $$('[data-flag-set]', container).forEach((t) => t.addEventListener("click", () => {
       const k = t.dataset.flagSet;
@@ -192,15 +179,14 @@
 
   /* Usages the device reports with a CONSTANT non-zero value. These are vendor fields, not
      controls — a real button swings 0..1. They are useless as an input and POISONOUS in a
-     combo: their "press" happened once at enumeration and never again, so the combo's timing
-     window can never be satisfied and it can never fire. One real mouse reports 0xffa00008 at
-     min=max=1 forever; the tool offered it, the user built a combo on it, and it silently did
-     nothing. Save now refuses to ship one. */
+     mapping: their "press" happened once at enumeration and never again, so a mapping on one
+     can never trigger. One real mouse reports 0xffa00008 at min=max=1 forever; the tool offered
+     it and it silently did nothing. Save now refuses to ship one. */
   window.HRX_MON_STUCK = window.HRX_MON_STUCK || new Set();
 
   /* Everything the Monitor has actually SEEN, exposed to the usage picker. These are the
      controls you just pressed on the hardware in front of you — far more useful for building
-     a combo than scrolling a catalog of every usage in existence. */
+     a mapping than scrolling a catalog of every usage in existence. */
   window.HRX_MON_LIVE = () => [...monData.values()];
   let monRegistered = false;
 
@@ -309,16 +295,16 @@
       }
       // A usage the device reports with a CONSTANT value is not a control — it is a vendor
       // field (a flag byte, a counter seed). A real button swings 0..1. Say so, loudly:
-      // 0xffa00008 on one mouse sits at min=max=1 forever, and a combo built on it can NEVER
-      // fire, because its "press" happened once at enumeration and never again. The tool used
-      // to happily offer it and then silently do nothing.
+      // 0xffa00008 on one mouse sits at min=max=1 forever, so a mapping on it can NEVER
+      // trigger — its "press" happened once at enumeration and never again. The tool used to
+      // happily offer it and then silently do nothing.
       const stuck = r.seen > 40 && r.min === r.max && r.min !== 0;
       if (stuck) window.HRX_MON_STUCK.add(r.usage); // remembered so Save can refuse to ship it
       tr.classList.toggle("mon-stuck", !!stuck);
       const nameCell = tr.children[1];
       if (stuck && !nameCell.querySelector(".mon-warn")) {
         nameCell.insertAdjacentHTML("beforeend",
-          ` <span class="mon-warn" title="This usage never changes — it sits at ${r.min}. It is a vendor field, not a button, so it cannot be pressed or released. Mapping it does nothing, and using it in a combo means the combo can never fire.">always ${r.min} — not a button</span>`);
+          ` <span class="mon-warn" title="This usage never changes — it sits at ${r.min}. It is a vendor field, not a button, so it cannot be pressed or released. Mapping it does nothing.">always ${r.min} — not a button</span>`);
       }
 
       const c = tr.children;
@@ -439,7 +425,7 @@
           <span class="macro-step-n">${n + 1}</span>
           <div class="macro-keys">
             ${keys || `<span class="hint">empty step — add a key</span>`}
-            <button class="combo-add" data-mkeyadd="1" data-mi="${i}" data-step="${n}" title="Press another key at the same time as this step">${ICON.plus}</button>
+            <button class="combo-add" data-mkeyadd="1" data-mi="${i}" data-step="${n}" title="Add another key to this macro step (pressed together)">${ICON.plus}</button>
           </div>
           <div class="macro-step-ctrls">
             <button class="icon-btn" data-mstepup="1" data-mi="${i}" data-step="${n}" title="Move step up" ${n === 0 ? "disabled" : ""}>${ICON.up}</button>
@@ -676,7 +662,7 @@
   //                                            into it; it just streams reports to A over UART.
   const FW_REPO = "https://github.com/Qutaiba-Khader/hid-remapper-vx";
   const FW_BASE = FW_REPO + "/releases/latest/download/";
-  const FW_VERSION_FALLBACK = "r2026-07-13"; // shown if the GitHub API can't be reached
+  const FW_VERSION_FALLBACK = "r2026-07-06"; // shown if the GitHub API cannot be reached
 
   const FW_BOARDS = [
     { name: "Pico / Pico W", chip: "RP2040", files: [
@@ -817,7 +803,7 @@
     container.innerHTML = `
     <div class="panel"><div class="panel-body">
       <div class="settings-grid">
-        ${card(ICON.download, "Export config", "Download the full configuration (mappings, combos, expressions, settings) as a JSON file.", "Export JSON", false, "export")}
+        ${card(ICON.download, "Export config", "Download the full configuration (mappings, macros, expressions, settings) as a JSON file.", "Export JSON", false, "export")}
         ${card(ICON.file, "Import config", "Load a configuration from a JSON file on your computer.", "Import JSON", false, "import")}
         ${card(ICON.bolt, "Flash firmware", "Reboot into bootloader so you can drop a new .uf2 file.", "Enter bootloader", true, "flash")}
         ${card(ICON.layers, "Flash B-side", "Flash the host-side firmware for two-board (dual) devices.", "Flash B-side", true, "flashb")}
@@ -828,7 +814,6 @@
         <h3>Firmware downloads</h3>
         <p>
           <span class="fw-release" id="fwRelease">${FW_VERSION_FALLBACK}</span>
-          <span class="fw-release-note">includes native combos</span>
           — every link below is that release.
         </p>
         <p>

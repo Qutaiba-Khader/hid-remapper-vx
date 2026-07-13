@@ -22,8 +22,6 @@
       add: () => [mk("0x000c0041", "0x00070028", { tint: "nav" })] },
     { icon: ICON.mic, color: "#f06292", title: "Remap voice control", sub: "Mic button → AC Home",
       add: () => [mk("0x000c0221", "0x000c0223", { tint: "system" })] },
-    { icon: ICON.volume, color: "#4dd0e1", title: "Volume combo → Mute", sub: "Vol Up + Vol Down held together → Mute",
-      add: () => [mk(["0x000c00e9", "0x000c00ea"], "0x000c00e2", { tint: "volume" })] },
     { icon: ICON.home, color: "#ffb74d", title: "Hold Back for Home", sub: "Hold AC Back → AC Home",
       add: () => [mk("0x000c0224", "0x000c0223", { tint: "system", hold: true })] },
     { icon: ICON.keyboard, color: "#5b8cff", title: "D-pad → arrow keys", sub: "Up / Down / Left / Right → keyboard arrows",

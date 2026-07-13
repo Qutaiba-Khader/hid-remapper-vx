@@ -7,13 +7,6 @@
 #define DIGIPOT_USAGE_PAGE 0xFFF60000
 #define DPAD_USAGE_PAGE 0xFFF90000
 #define RGB_LED_USAGE_PAGE 0xFFFA0000  // low 16 bits = RGB565 color
-// A target on the COMBO page is the logical AND of its sources (every other target sums
-// them, which is an OR). One combo = N "member" mappings (key -> COMBO_USAGE_PAGE|id) plus
-// one "trigger" mapping (COMBO_USAGE_PAGE|id -> output). On a member mapping, `scaling`
-// carries the timing window in ms (0 = no window) and flags bit 3 marks the key as consumed.
-// This adds no persisted field, so CONFIG_VERSION stays 18.
-// See docs/superpowers/specs/2026-07-13-firmware-combos-design.md
-#define COMBO_USAGE_PAGE 0xFFFB0000
 
 #define DPAD_USAGE_LEFT (DPAD_USAGE_PAGE | 1)
 #define DPAD_USAGE_RIGHT (DPAD_USAGE_PAGE | 2)

@@ -1,3 +1,6 @@
+> **NOTE (2026-07-13): combos were REMOVED from this project.** Any combo content below is
+> historical — the feature no longer exists in the firmware, the web tool or any release.
+
 # Web Config Tool Redesign — Integration Work Plan
 
 ## ✅ STATUS: COMPLETE (2026-07-13) — `master` = `2af9565`, 104 tests, LIVE

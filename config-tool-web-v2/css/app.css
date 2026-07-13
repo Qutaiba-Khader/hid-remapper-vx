@@ -343,7 +343,7 @@ body {
 
 .toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 
-/* segmented control (combo layout switch etc) */
+/* segmented control */
 .seg-ctrl { display: inline-flex; background: var(--bg-deep); border: 1px solid var(--border-bright); border-radius: 999px; padding: 3px; gap: 3px; }
 .seg-ctrl button { font-family: var(--font-ui); font-weight: 600; font-size: 12px; color: var(--text); background: transparent; border: none; border-radius: 999px; padding: 6px 13px; cursor: pointer; }
 .seg-ctrl button.on { background: linear-gradient(160deg, var(--purple-hi), var(--purple-2)); color: #fff; box-shadow: 0 3px 10px var(--purple-glow); }

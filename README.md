@@ -12,12 +12,10 @@ Use Chrome or a Chromium-based browser (WebHID required).
 
 - **Dark theme UI** optimized for readability
 - **Categorized Android TV usages** (Power, Navigation, Media, Volume, Apps, System)
-- **Quick Actions tab** with grid-button shortcuts for Android TV, Browser, and Windows key combos
 - **Example Configs** as color-coded categorized cards (Keyboard, Mouse, Macros, Expressions, Windows)
 - **Expression Builder** - visual block-based editor (powered by Google Blockly) for building RPN expressions without writing code
   - Categorized toolbox: Input, Logic, Math, Memory, Time, Trig/Advanced
   - Unified input picker with all mouse, keyboard, and gamepad inputs in one dropdown
-  - 7 starter templates (Button Hold, Scale Mouse, Invert Axis, If/Then/Else, Clamp, Combo, Threshold)
   - RPN parser that loads existing expressions back into visual blocks when clicking Edit
   - Close confirmation dialog to prevent losing work
 - **Expression UX** - snippets dropdown, copy/paste buttons, and Edit button linking to the visual builder

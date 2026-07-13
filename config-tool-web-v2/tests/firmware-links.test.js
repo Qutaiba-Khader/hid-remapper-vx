@@ -77,18 +77,3 @@ test("the dual builds are labelled with the correct side (A = device/PC, B = hos
   assert.ok(bLine && /side B/i.test(bLine[1]),
     "side B must be described as the one your device plugs into");
 });
-
-test("the combo engine is enabled on EVERY build that runs the mapping engine", () => {
-  // RP2040/RP2350
-  const cmake = fs.readFileSync(path.join(ROOT, "firmware", "CMakeLists.txt"), "utf8");
-  const opt = cmake.match(/option\(COMBO_ENABLED[\s\S]*?\)\s*\n/);
-  assert.ok(opt && /\bON\s*\)/.test(opt[0]),
-    "firmware/CMakeLists.txt must default COMBO_ENABLED to ON");
-
-  // nRF52840 (Bluetooth) — it compiles the SAME remapper.cc, so without the define it would
-  // silently ignore combos while every other board honoured them.
-  const bt = fs.readFileSync(path.join(ROOT, "firmware-bluetooth", "CMakeLists.txt"), "utf8");
-  assert.ok(bt.includes("remapper.cc"), "the bluetooth build compiles the shared mapping engine");
-  assert.ok(/add_compile_definitions\(COMBO_ENABLED\)/.test(bt),
-    "the bluetooth build must define COMBO_ENABLED, or nRF52840 boards silently lose combos");
-});

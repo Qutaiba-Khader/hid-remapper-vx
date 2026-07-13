@@ -618,10 +618,6 @@ const USAGE_BY_CODE = (() => {
 
 function usageName(code) {
   if (!code || code === "0x00000000") return "Unmapped";
-  // The firmware reports each combo's internal state on page 0xFFFB so the Monitor can show
-  // whether a combo actually latched. Those slots are generated, not in the catalog.
-  const n = parseInt(code, 16) >>> 0;
-  if (Number.isFinite(n) && ((n & 0xffff0000) >>> 0) === 0xfffb0000) return "Combo " + (n & 0xffff);
   return (USAGE_BY_CODE[code] && USAGE_BY_CODE[code].name) || code;
 }
 function usageAccent(code) {

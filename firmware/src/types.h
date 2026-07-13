@@ -147,20 +147,6 @@ struct map_source_t {
     uint64_t last_scroll_timestamp;  // XXX we can make this 32 or less bits
 };
 
-struct combo_member_t {
-    int32_t* input_state;
-    uint8_t layer_mask;
-    bool consume;      // while the combo is held, this key does not fire its own mappings
-    uint64_t rise_at;  // µs timestamp of this member's most recent 0 -> non-zero edge
-};
-
-struct combo_t {
-    uint32_t window_us = 0;  // all members must go down within this span; 0 = no timing check
-    int32_t* out_state = NULL;
-    bool latched = false;
-    std::vector<combo_member_t> members;
-};
-
 struct out_usage_def_t {
     uint8_t* data;
     uint16_t len;

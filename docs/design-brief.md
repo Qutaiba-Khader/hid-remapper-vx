@@ -1,3 +1,6 @@
+> **NOTE (2026-07-13): combos were REMOVED from this project.** Any combo content below is
+> historical — the feature no longer exists in the firmware, the web tool or any release.
+
 # HID Remapper VX — Web Config Tool Redesign Brief
 
 ## ⚑ How to use this brief (read first)

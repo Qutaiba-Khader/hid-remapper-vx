@@ -9,17 +9,27 @@
   let state = null; // { mode, current, onSelect, query }
 
   function buildScrim() {
-    scrim = h(`<div class="modal-scrim" id="pickerScrim"></div>`);
+    // `picker-scrim`, NOT the shared `modal-scrim`: expressions.css also styles .modal-scrim and
+    // is loaded later, where it sets `display: grid` with no hidden state (its modals are created
+    // and removed, not toggled). Sharing the class made the picker impossible to close.
+    scrim = h(`<div class="picker-scrim" id="pickerScrim"></div>`);
     document.body.appendChild(scrim);
     scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && scrim.classList.contains("open")) close(); });
   }
 
-  function close() { scrim.classList.remove("open"); }
+  function close() {
+    scrim.classList.remove("open");
+    scrim.innerHTML = "";   // drop the old list + its listeners; the next open rebuilds it
+    state = null;
+  }
+  window.HRX_PICKER_IS_OPEN = () => !!(scrim && scrim.classList.contains("open"));
 
-  window.openPicker = function ({ mode, current, onSelect }) {
+  // opts: { mode:'input'|'output', current, onSelect(code),
+  //         port?:number, onPort?(port)  <- optional hub-port control (v1 parity) }
+  window.openPicker = function ({ mode, current, onSelect, port, onPort }) {
     if (!scrim) buildScrim();
-    state = { mode, current, onSelect, query: "" };
+    state = { mode, current, onSelect, port, onPort, query: "" };
     scrim.innerHTML = pickerHtml();
     scrim.classList.add("open");
     wire();
@@ -47,10 +57,7 @@
           <button class="btn-hx btn-ghost btn-sm picker-close" id="pickerClose">${ICON.x}<span>Close</span></button>
         </div>
         <div class="picker-controls">
-          <!-- The mock had "Port" and "Input labels" dropdowns here. They were never wired to
-               anything — they looked functional but changed nothing — so they are gone rather
-               than lying to the user. (Both map to real device fields, source_port and
-               input_labels, which round-trip untouched; they just have no UI yet.) -->
+          ${portHtml()}
           <div class="field" style="flex:1">
             <label>Search</label>
             <div class="search-wrap">
@@ -69,6 +76,22 @@
         <div class="picker-list" id="pickerList">${listHtml("")}</div>
       </div>
     </div>`;
+  }
+
+  /* Hub port (v1 parity). Only shown when the caller supplies onPort — i.e. when the picker is
+     editing a real mapping. The mock had a dead "Port" dropdown here; this is the working one.
+     0 = any port; 1-4 = only when the source device is on that USB hub port. */
+  function portHtml() {
+    if (!state.onPort) return "";
+    const cur = state.port || 0;
+    const label = state.mode === "input" ? "Source port" : "Target port";
+    const opts = [[0, "0 — Any"], [1, "1"], [2, "2"], [3, "3"], [4, "4"]]
+      .map(([v, t]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${t}</option>`).join("");
+    return `
+      <div class="field">
+        <label>${label}</label>
+        <select class="select-hx" id="pickerPort" style="width:104px">${opts}</select>
+      </div>`;
   }
 
   function listHtml(query) {
@@ -119,6 +142,12 @@
   function wire() {
     $("#pickerClose").addEventListener("click", close);
 
+    const portSel = $("#pickerPort");
+    if (portSel) portSel.addEventListener("change", () => {
+      state.port = parseInt(portSel.value, 10) || 0;
+      state.onPort(state.port);
+    });
+
     const search = $("#pickerSearch");
     search.addEventListener("input", () => { $("#pickerList").innerHTML = listHtml(search.value); wirePills(); });
 
@@ -134,8 +163,14 @@
     $$('#pickerNav [data-jump]').forEach((b) => b.addEventListener("click", () => {
       $$('#pickerNav button').forEach((x) => x.classList.remove("on"));
       b.classList.add("on");
+      const list = $("#pickerList");
       const block = $("#cat-" + b.dataset.jump);
-      if (block) $("#pickerList").scrollTo({ top: block.offsetTop - 12, behavior: "smooth" });
+      if (!list || !block) return;
+      // offsetTop is measured against the nearest POSITIONED ancestor, which is not necessarily
+      // the scroll container — using it made the jump land in the wrong place. Measure the real
+      // delta between the two boxes instead, which is correct whatever the layout does.
+      const delta = block.getBoundingClientRect().top - list.getBoundingClientRect().top;
+      list.scrollTo({ top: list.scrollTop + delta - 10, behavior: "smooth" });
     }));
 
     wirePills();

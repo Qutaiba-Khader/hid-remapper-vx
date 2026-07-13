@@ -242,8 +242,17 @@
     body.innerHTML = rows.map(rowMon).join("") ||
       `<tr><td colspan="6" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
     $$('#monBody [data-mkmap]').forEach((b) => b.addEventListener("click", () => {
-      APP.mappings.push(window.HRX_STATE.mk(b.dataset.code, "0x00000000"));
-      toast(`Mapping created from ${b.dataset.name}`);
+      // Create the mapping AND take the user to it. Previously this pushed the row and stayed
+      // on the Monitor tab, so nothing visible happened and the button looked dead.
+      const code = b.dataset.code;
+      const existing = APP.mappings.find((m) => (m.inputs || [])[0] === code);
+      if (existing) {
+        toast(`${b.dataset.name} is already mapped — opening it`);
+      } else {
+        APP.mappings.push(window.HRX_STATE.mk(code, "0x00000000"));
+        toast(`Mapping added for ${b.dataset.name} — now pick its output`);
+      }
+      window.HRX.setTab("mappings");
     }));
   }
   function rowMon(r) {

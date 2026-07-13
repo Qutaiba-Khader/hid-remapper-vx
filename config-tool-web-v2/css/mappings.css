@@ -284,14 +284,20 @@
 /* ============================================================
    USAGE PICKER MODAL
    ============================================================ */
-.modal-scrim {
-  position: fixed; inset: 0; z-index: 100;
+/* The picker keeps ONE scrim element alive and toggles `.open` on it, so it needs a
+   hidden default. It therefore gets its OWN class: `.modal-scrim` is also styled by
+   expressions.css (which is loaded later and sets `display: grid` with no hidden state,
+   because the expression and JSON modals create their scrim and .remove() it again).
+   Sharing the class meant the later rule won and the picker could never be hidden —
+   neither the Close button nor selecting a usage would dismiss it. */
+.picker-scrim {
+  position: fixed; inset: 0; z-index: 320;
   background: rgba(8, 8, 20, 0.72);
   backdrop-filter: blur(5px);
   display: none; align-items: flex-start; justify-content: center;
   padding: 48px 18px;
 }
-.modal-scrim.open { display: flex; }
+.picker-scrim.open { display: flex; }
 .picker {
   width: min(880px, 100%);
   max-height: calc(100vh - 96px);

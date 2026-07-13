@@ -244,9 +244,14 @@
     // change a forked group's shared input — applies to all its behaviors
     $$('[data-pickgroup]', root).forEach((b) => b.addEventListener("click", () => {
       const oldCode = b.dataset.pickgroup;
+      const group = () => APP.mappings.filter((m) => m.inputs[0] === oldCode);
+      const first = group()[0];
       window.openPicker({
         mode: "input",
         current: oldCode,
+        // the whole group shares one input, so it shares one source port
+        port: (first && first.source_port) || 0,
+        onPort: (p) => { group().forEach((m) => { m.source_port = p; }); },
         onSelect: (code) => {
           APP.mappings.forEach((m) => { if (m.inputs[0] === oldCode) m.inputs[0] = code; });
           refresh();
@@ -270,6 +275,9 @@
       window.openPicker({
         mode: role,
         current,
+        // hub port for this mapping (v1 parity): source_port for an input, target_port for an output
+        port: role === "input" ? (m.source_port || 0) : (m.target_port || 0),
+        onPort: (p) => { if (role === "input") m.source_port = p; else m.target_port = p; },
         onSelect: (code) => {
           if (role === "input") {
             // no duplicate keys within one combo

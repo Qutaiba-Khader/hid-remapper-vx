@@ -22,6 +22,7 @@
     macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
     passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
     combos: (s) => { s.combosEnabled = DEF.combosEnabled; },
+    inputLabels: (s) => { s.inputLabels = DEF.inputLabels; },
     flags: (s) => {
       s.normalizeGamepad = DEF.normalizeGamepad;
       s.gpioOutputMode = DEF.gpioOutputMode;
@@ -104,6 +105,13 @@
           "Pass keys with no mapping straight through, per layer. All layers are on by default — switching a layer off silences every unmapped key on it.",
           passToggles)}
 
+        ${card("inputLabels", "Input labels",
+          "Which naming scheme the picker uses for the shared button/axis codes. A gamepad and a mouse use the same HID codes, so the same number can be “Left button” or “Button 1”.",
+          `<select class="select-hx" style="width:100%" id="inputLabels">
+             <option value="0" ${(s.inputLabels || 0) === 0 ? "selected" : ""}>Mouse</option>
+             <option value="1" ${(s.inputLabels || 0) === 1 ? "selected" : ""}>Gamepad</option>
+           </select>`)}
+
         ${card("flags", "Device flags",
           "Lower-level switches. Leave these alone unless you know you need them.",
           `${toggleRow('data-flag-set="normalizeGamepad"', s.normalizeGamepad !== false, "Normalize gamepad inputs")}
@@ -115,6 +123,9 @@
     </div>`;
 
     const rerender = () => window.HRX.rerenderTab();
+
+    const il = $("#inputLabels", container);
+    if (il) il.addEventListener("change", () => { s.inputLabels = parseInt(il.value, 10) || 0; });
 
     $("#emu", container).addEventListener("change", (e) => {
       s.emulatedDevice = +e.target.value;

@@ -202,6 +202,18 @@
   border-top: 1px dashed var(--border-soft); margin-top: 6px;
 }
 
+/* ---- EXAMPLES (the 72 ready-made configs from the original tool) ---- */
+.example-list { display: flex; flex-direction: column; gap: 7px; }
+.example-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--border-bright); border-radius: var(--radius-sm);
+  background: var(--bg-deep); padding: 10px 12px;
+}
+.example-row:hover { background: var(--hover); border-color: var(--purple-hi); }
+.ex-main { flex: 1 1 auto; min-width: 0; }
+.ex-title { color: #fff; font-weight: 500; }
+.ex-meta { font-family: var(--font-mono); font-size: 10px; color: #fff; opacity: 0.55; margin-top: 2px; }
+
 /* ---- QUIRKS ---- */
 .quirk-row {
   border: 1px solid var(--border-bright); border-radius: var(--radius-sm);

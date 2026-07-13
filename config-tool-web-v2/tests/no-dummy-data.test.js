@@ -69,8 +69,12 @@ test("every Quick Start preset creates REAL mappings (no blank rows, no fake cou
   // the fake examples pushed mk("0x00000000","0x00000000") N times while claiming a real config
   assert.ok(!/mk\("0x00000000",\s*"0x00000000"\)/.test(src),
     "Quick Start must never add blank placeholder mappings");
-  assert.ok(!src.includes("data-ex"), "the fake 'example configs' gallery is gone");
+  assert.ok(!/data-ex="/.test(src), "the mock's fake 'example configs' gallery is gone");
   assert.ok(!src.includes("data-shortcut"), "the fake shortcut grid is gone");
+  // the REAL example library (72 configs ported verbatim from the original tool) is expected
+  assert.ok(src.includes("data-exadd") && src.includes("data-exload"),
+    "the genuine example library must be offered (Add appends, Replace swaps the whole config)");
+  assert.ok(src.includes("HRX_EXAMPLES"), "and it must come from the real examples.js, not invented data");
 
   // every preset must map a real source usage to a real target usage
   const adds = [...src.matchAll(/mk\((\[[^\]]+\]|"0x[0-9a-f]{8}"),\s*"(0x[0-9a-f]{8})"/g)];

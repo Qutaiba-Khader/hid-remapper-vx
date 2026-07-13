@@ -36,7 +36,14 @@
   already on the device could not be edited.
 - **Layer safety**: a layer key is forced onto the layer it activates (non-sticky) or off it
   (sticky), exactly as the firmware does — otherwise you can build a layer you cannot leave.
-- **Feature parity with the original tool is now complete.**
+- **The 72 example configs** from the original tool (search, then **Add** to append or **Replace** to swap).
+- **The output list follows the emulated device.** A "Nintendo Switch" build cannot send mouse
+  movement, so it is no longer offered — and the same HID code is relabelled per profile
+  (0x00010030 is "Cursor X" on a mouse, "Left stick X" on a gamepad).
+- **Click-to-sort** the Input / Output / Layers columns, and a **back-to-top** button.
+- **Multi-line expressions** (`eol` shows as a real line break) and **`/* comments */` survive
+  editing through the block palette** — the tokenizer used to delete them silently.
+- **Feature parity with the original tool is COMPLETE.** Nothing it can do is missing here.
 
 ## Native combos — r2026-07-13
 

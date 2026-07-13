@@ -39,8 +39,7 @@
   function pickerHtml() {
     const title = state.mode === "input" ? "Select input" : "Select output";
     const kicker = state.mode === "input" ? "Source usage" : "Target usage";
-    const dev = deviceCategory();
-    const nav = (dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES).map((c) => {
+    const nav = categories().map((c) => {
       const dot = c.led
         ? `<span class="nav-dot" style="background:conic-gradient(#ff3b30,#ffe11a,#22c55e,#22d3ee,#3b82f6,#a855f7,#ff5fa2,#ff3b30)"></span>`
         : `<span class="nav-dot" style="background:${c.accent}"></span>`;
@@ -116,12 +115,27 @@
     };
   }
 
+  /* "Input labels" (Settings). A mouse and a gamepad report the SAME HID codes, so the same number
+     is either "Left button" or "Button 1". v1 shows one label set or the other in the source picker;
+     we do the same, otherwise the setting would be a control that changes nothing. */
+  function labelFiltered(cats) {
+    if (state.mode !== "input") return cats;                 // v1 only filters the source picker
+    const APP = window.HRX_STATE && window.HRX_STATE.APP;
+    const mode = (APP && APP.settings && APP.settings.inputLabels) || 0;   // 0 = mouse, 1 = gamepad
+    const drop = mode === 1 ? "mouse" : "gamepad";
+    return cats.filter((c) => c.id !== drop);
+  }
+
+  function categories() {
+    const dev = deviceCategory();
+    return labelFiltered(dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES.slice());
+  }
+
   function listHtml(query) {
     const q = query.trim().toLowerCase();
     let blocks = "";
     let any = false;
-    const dev = deviceCategory();
-    const cats = dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES;
+    const cats = categories();
     cats.forEach((cat) => {
       const matches = cat.usages.filter(([code, name]) =>
         !q || name.toLowerCase().includes(q) || code.toLowerCase().includes(q)

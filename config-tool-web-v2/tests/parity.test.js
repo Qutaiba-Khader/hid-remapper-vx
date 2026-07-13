@@ -151,3 +151,13 @@ test("the picker's custom hex field validates and zero-pads", () => {
   assert.ok(/padStart\(8, "0"\)/.test(p), "a short code must be zero-padded to 8 digits");
   assert.ok(/\[0-9a-f\]\{1,8\}/i.test(p), "and junk must be rejected");
 });
+
+test("the Input labels setting actually FILTERS the picker (not a dead control)", () => {
+  const p = read("js/picker.js");
+  assert.ok(/labelFiltered/.test(p), "the picker must apply the input-labels setting");
+  assert.ok(/settings\.inputLabels/.test(p), "reading it from settings");
+  assert.ok(/mode === 1 \? "mouse" : "gamepad"/.test(p),
+    "gamepad labels hide the mouse group and vice versa — a mouse and a gamepad share HID codes");
+  const t = read("js/tabs.js");
+  assert.ok(/id="inputLabels"/.test(t), "and there must be a control for it in Settings");
+});

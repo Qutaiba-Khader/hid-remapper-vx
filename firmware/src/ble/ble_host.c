@@ -246,11 +246,13 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
 /* Forget one device: drop its LTK from the bonding db AND the "last connected" tag, so the next
    attempt is a genuine fresh pairing rather than another doomed re-encryption. */
 static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type){
-    int index = le_device_db_index_for_address(addr_type, (uint8_t *) addr);
-    if (index >= 0){
-        le_device_db_remove(index);
-        printf("   bond for %s deleted\n", bd_addr_to_str((uint8_t *) addr));
-    }
+    // gap_delete_bonding() is the portable API. (This btstack has no
+    // le_device_db_index_for_address.)
+    gap_delete_bonding(addr_type, (uint8_t *) addr);
+    printf("   bond for %s deleted\n", bd_addr_to_str((uint8_t *) addr));
+
+    // also drop the "last connected device" tag, so the next boot scans instead of
+    // going straight back to a device we just decided not to trust
     btstack_tlv_get_instance(&btstack_tlv_singleton_impl, &btstack_tlv_singleton_context);
     if (btstack_tlv_singleton_impl){
         btstack_tlv_singleton_impl->delete_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD);

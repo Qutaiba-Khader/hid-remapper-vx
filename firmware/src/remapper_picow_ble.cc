@@ -39,9 +39,15 @@
  * defaults, every mapping gone, no error shown). CMakeLists pins the bond bank below the config;
  * this makes it a COMPILE ERROR if that ever stops being true. */
 #define BLE_CONFIG_OFFSET (PICO_FLASH_SIZE_BYTES - PERSISTED_CONFIG_SIZE)
-static_assert(PICO_FLASH_BANK_STORAGE_OFFSET + PICO_FLASH_BANK_TOTAL_SIZE <= BLE_CONFIG_OFFSET,
+#define BLE_BOND_OFFSET   (PICO_FLASH_BANK_STORAGE_OFFSET)
+#define BLE_BOND_END      (BLE_BOND_OFFSET + PICO_FLASH_BANK_TOTAL_SIZE)
+
+static_assert(BLE_BOND_END <= BLE_CONFIG_OFFSET,
               "BLE bond storage overlaps hid-remapper's config sector: saving a config would erase "
-              "your pairing and pairing would erase your config. Fix PICO_FLASH_BANK_STORAGE_OFFSET.");
+              "your pairing, and pairing would erase your config. Fix PICO_FLASH_BANK_STORAGE_OFFSET.");
+// and it must not have wandered down into program flash either
+static_assert(BLE_BOND_OFFSET > (PICO_FLASH_SIZE_BYTES / 2),
+              "BLE bond storage is far too low in flash - it would sit on top of the program.");
 
 /* The BLE device has no USB VID/PID. The engine only uses them to look up QUIRKS, so a stable,
  * non-colliding pair is all that is needed -- and it must be STABLE, or a quirk you add would stop

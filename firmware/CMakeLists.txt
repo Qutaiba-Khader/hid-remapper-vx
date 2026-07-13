@@ -332,9 +332,12 @@ if(PICO_BOARD STREQUAL "pico_w")
     # quietly re-introduce this.
     # Computed as a C expression, not in CMake: PICO_FLASH_SIZE_BYTES comes from the board header
     # and PERSISTED_CONFIG_SIZE from add_compile_definitions() above -- neither is a CMake variable.
+    # NO PARENTHESES: they end up in the -D flag on the compiler command line, where /bin/sh eats
+    # them ("Syntax error: ')' unexpected"). Purely additive, so precedence is not an issue, and
+    # remapper_picow_ble.cc static_asserts the result against the config sector anyway.
     target_compile_definitions(remapper_picow_ble PRIVATE
         PICO_FLASH_BANK_TOTAL_SIZE=8192
-        PICO_FLASH_BANK_STORAGE_OFFSET=(PICO_FLASH_SIZE_BYTES-PERSISTED_CONFIG_SIZE-8192)
+        PICO_FLASH_BANK_STORAGE_OFFSET=PICO_FLASH_SIZE_BYTES-PERSISTED_CONFIG_SIZE-8192
     )
 
     # WHICH BLE DEVICE TO CONNECT TO.

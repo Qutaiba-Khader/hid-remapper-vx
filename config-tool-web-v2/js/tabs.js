@@ -188,7 +188,15 @@
   };
 
   /* ---------------- MONITOR (live input reports from the device) ---------------- */
-  const monData = new Map(); // `${usage}_${hub_port}` -> { usage, name, hub_port, last, min, max }
+  const monData = new Map(); // `${usage}_${hub_port}` -> { usage, name, hub_port, last, min, max, seen }
+
+  /* Usages the device reports with a CONSTANT non-zero value. These are vendor fields, not
+     controls — a real button swings 0..1. They are useless as an input and POISONOUS in a
+     combo: their "press" happened once at enumeration and never again, so the combo's timing
+     window can never be satisfied and it can never fire. One real mouse reports 0xffa00008 at
+     min=max=1 forever; the tool offered it, the user built a combo on it, and it silently did
+     nothing. Save now refuses to ship one. */
+  window.HRX_MON_STUCK = window.HRX_MON_STUCK || new Set();
   let monRegistered = false;
 
   // fed by device.js -> HRX_DEVICE.onMonitor(cb); cb gets { usage, value, hub_port }
@@ -197,9 +205,10 @@
     let row = monData.get(key);
     if (!row) {
       const name = (window.HRX_USAGES && window.HRX_USAGES.usageName(rec.usage)) || rec.usage;
-      row = { usage: rec.usage, name, hub_port: rec.hub_port, last: rec.value, min: rec.value, max: rec.value };
+      row = { usage: rec.usage, name, hub_port: rec.hub_port, last: rec.value, min: rec.value, max: rec.value, seen: 0 };
       monData.set(key, row);
     }
+    row.seen++; // how many reports we have seen — needed before calling a usage "constant"
     row.last = rec.value;
     if (rec.value < row.min) row.min = rec.value;
     if (rec.value > row.max) row.max = rec.value;
@@ -293,6 +302,20 @@
         // bound once, on a node that is never replaced
         tr.querySelector("[data-mkmap]").addEventListener("click", () => mapThis(r));
       }
+      // A usage the device reports with a CONSTANT value is not a control — it is a vendor
+      // field (a flag byte, a counter seed). A real button swings 0..1. Say so, loudly:
+      // 0xffa00008 on one mouse sits at min=max=1 forever, and a combo built on it can NEVER
+      // fire, because its "press" happened once at enumeration and never again. The tool used
+      // to happily offer it and then silently do nothing.
+      const stuck = r.seen > 40 && r.min === r.max && r.min !== 0;
+      if (stuck) window.HRX_MON_STUCK.add(r.usage); // remembered so Save can refuse to ship it
+      tr.classList.toggle("mon-stuck", !!stuck);
+      const nameCell = tr.children[1];
+      if (stuck && !nameCell.querySelector(".mon-warn")) {
+        nameCell.insertAdjacentHTML("beforeend",
+          ` <span class="mon-warn" title="This usage never changes — it sits at ${r.min}. It is a vendor field, not a button, so it cannot be pressed or released. Mapping it does nothing, and using it in a combo means the combo can never fire.">always ${r.min} — not a button</span>`);
+      }
+
       const c = tr.children;
       c[2].textContent = portLabel(r.hub_port);
       c[3].textContent = r.last;

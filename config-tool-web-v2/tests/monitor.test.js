@@ -231,3 +231,20 @@ test("a live monitor update must NOT rebuild the rows — it destroys the + butt
     "the old full-rebuild-on-every-report must be gone — that is what broke the + button");
   assert.ok(/monEls\.clear\(\)/.test(t), "and the cache must be dropped when the container is rebuilt");
 });
+
+test("a usage stuck at a constant value is flagged, and Save refuses to ship it in a combo", () => {
+  // REAL FAILURE, real hardware: a mouse reports 0xffa00008 at min=max=1 forever. It is a
+  // vendor field, not a button. The user built `Right + 0xffa00008 -> Q`; the combo could
+  // NEVER fire, because that member's "press" happened once at enumeration and never again,
+  // so the timing window is unsatisfiable. The firmware was right to refuse. The TOOL was
+  // wrong to offer it and then say nothing.
+  const t = readSrc("js/tabs.js");
+  assert.ok(/window\.HRX_MON_STUCK/.test(t), "constant usages must be remembered");
+  assert.ok(/r\.seen > 40 && r\.min === r\.max && r\.min !== 0/.test(t),
+    "constant = enough samples AND min == max AND non-zero (a released button is min=max=0)");
+  assert.ok(/not a button/.test(t), "and the monitor row must say so in words");
+
+  const a = readSrc("js/app.js");
+  assert.ok(/HRX_MON_STUCK/.test(a) && /Save cancelled/.test(a),
+    "Save must warn before shipping a mapping built on a constant usage");
+});

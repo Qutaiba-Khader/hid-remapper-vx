@@ -255,6 +255,22 @@ async function handleConn(act) {
         "Tip: click “Load from device” first if you only meant to change a few mappings.\n\nSave anyway?");
       if (!ok) { toast("Save cancelled"); return; }
     }
+    // A usage the device reports at a CONSTANT non-zero value is a vendor field, not a control.
+    // In a combo it is fatal: its "press" happened once at enumeration and never again, so the
+    // timing window can never be satisfied and the combo can NEVER fire — silently. Refuse.
+    const stuck = window.HRX_MON_STUCK || new Set();
+    if (stuck.size) {
+      const bad = APP.mappings.filter((m) => (m.inputs || []).some((u) => stuck.has(u)));
+      if (bad.length) {
+        const list = bad.map((m) => (m.inputs || []).filter((u) => stuck.has(u)).join(", ")).join("; ");
+        const ok = window.confirm(
+          "These mappings use a usage your device reports as a CONSTANT value: " + list + ".\n\n" +
+          "That is a vendor field, not a button — it never goes up or down. A combo built on it " +
+          "can NEVER fire, and with Consume on it will interfere with the other keys in it.\n\n" +
+          "Remove it (recommended), or save anyway?\n\nOK = save anyway   Cancel = go back and fix it");
+        if (!ok) { toast("Save cancelled — remove the constant usage from the highlighted rows"); return; }
+      }
+    }
     try {
       const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });
       const res = await dev.saveToDevice(config);

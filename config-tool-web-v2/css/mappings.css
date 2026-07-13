@@ -883,3 +883,14 @@
   .fw-grid { grid-template-columns: 1fr; }
   .led-grid { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }
+
+/* A usage the device reports with a CONSTANT value (min == max, never 0) is a vendor field,
+   not a control. A combo built on one can never fire: its "press" happened once at
+   enumeration and never again. Flag it wherever it can hurt. */
+.mon-warn, .stuck-warn {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  color: #fff; background: var(--err-bg); border: 1px solid #5a2326;
+  border-radius: 6px; padding: 3px 7px; margin-left: 8px; cursor: help;
+}
+tr.mon-stuck td { background: rgba(120, 35, 40, 0.13); }

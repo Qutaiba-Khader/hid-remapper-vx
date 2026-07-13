@@ -1,5 +1,35 @@
 # Native Combo Support — Implementation Plan
 
+## ✅ STATUS: BUILT, CI-VERIFIED, RELEASED (2026-07-13). Only the hardware test remains.
+
+Tasks 1–7 done. Firmware and web tool are on `master` (`2af9565`), released as **`r2026-07-13`**
+(Latest — includes the nRF52840 Bluetooth builds), and the web tool is live on GitHub Pages.
+
+- **Design held:** a combo is an **AND-gate on usage page `0xFFFB`**, persisted as three ordinary
+  mappings (N members + 1 trigger). **`CONFIG_VERSION` stayed 18** — the per-combo timing window
+  rides in the members' unused `scaling` (ms) and per-member *consume* in free `flags` bit 3.
+- **CMake `COMBO_ENABLED` defaults ON** → no `.uf2` filename changed; `-DCOMBO_ENABLED=OFF` gives an
+  upstream-identical build. **Also enabled for the nRF52840 build** (`firmware-bluetooth/CMakeLists.txt`
+  compiles the same `remapper.cc` but never defined it — Bluetooth boards would have silently
+  ignored combos).
+- **Firmware bug caught in review:** the combo member branch marked its key in `mapped_on_layers`, so
+  a key used ONLY in a combo silently **stopped working when pressed alone** (unmapped passthrough
+  defaults to all 8 layers). Fixed — suppression is the *consume* flag's job, and it is dynamic.
+- **Verified without hardware:** `evaluate_combos()` was ported line-for-line to JS and exercised
+  with 17 behavioural cases (AND semantics, the timing window, latch/re-arm, per-member consume,
+  layer gating). The web side has 104 tests, including a full end-to-end flow against a fake device
+  that asserts the exact bytes on the wire.
+
+### ⏳ Task 8 — the hardware test on `JJ8S` ONLY (never `CUSS`)
+Flash from the Actions tab, open the tool, **Open device** (it auto-loads), then:
+(a) add `Vol+ & Vol- → Mute`, Win 50, Consume on → Save → reload → comes back as **ONE** combo row;
+**(b) each key alone still fires** ← this is what the firmware bug above broke;
+(c) both together → Mute only; (d) Consume off → all three fire;
+(e) hold Vol+ ~2 s then tap Vol- → does **NOT** fire; set Win 0 → it does;
+(f) a combo drives a layer; (g) an old non-combo config behaves identically.
+
+---
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make combos (N inputs pressed together → one output) real: persisted on the device and evaluated by the firmware, instead of being parked in a web-only JSON field.

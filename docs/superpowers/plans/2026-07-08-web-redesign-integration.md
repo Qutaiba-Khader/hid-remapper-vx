@@ -1,5 +1,37 @@
 # Web Config Tool Redesign — Integration Work Plan
 
+## ✅ STATUS: COMPLETE (2026-07-13) — `master` = `2af9565`, 104 tests, LIVE
+All 6 phases done. The redesigned tool is live at
+**https://qutaiba-khader.github.io/hid-remapper-vx/config-tool-web-v2/** and the original tool at
+`/config-tool-web/` is untouched and still working.
+
+| Phase | | Notes |
+| --- | --- | --- |
+| 0 Scaffold | ✅ | `config-tool-web-v2/`, branch merged to `master` |
+| 1 Recon & mapping | ✅ | `2026-07-08-web-redesign-phase1-blueprint.md` |
+| 2 Device layer | ✅ | `js/device.js` (WebHID + 32-byte protocol), `js/translate.js` (the APP⇄config boundary), real `usages.js` |
+| 3 Feature tabs | ✅ | Mappings, Monitor (live), Settings, **Macros editor**, **Quirks editor**, Expressions, Quick Start, Actions |
+| 4 Combos | ✅ | **Superseded and improved:** combos are NATIVE in the firmware (AND-gate usage page `0xFFFB`) rather than a web-only `combos[]` field. `CONFIG_VERSION` still 18. Wire layout only; Inline/Stacked deleted. |
+| 5 Gaps & polish | ✅ | RGB LED presets, full 27-file firmware download grid with the live release tag, empty/error states |
+| 6 Verify & deploy | ✅ deployed / ⏳ hardware | Deployed + verified live. **The hardware test on `JJ8S` is the only thing left** (never `CUSS`). |
+
+**v1 feature parity is COMPLETE** — macros, quirks, expressions (all 55 ops), hub ports,
+device-reported usages, layer-forcing safety, monitor, JSON, firmware downloads. v2 additionally
+has combos, per-field reset-to-firmware-default, and per-row enable/disable.
+
+**What the review caught (all fixed):** Bootstrap made every toast invisible (so buttons looked
+dead); expression constants are ×1000 fixed point and `0.05 mul` was being written as `0 mul`; a
+`.modal-scrim` CSS collision made the usage picker impossible to close; two blank rows merged into
+one group; a failed save left the device SUSPENDED; save could wipe macros/expressions/quirks.
+See memory `learning_hid_vx_web_ui_bugs.md`.
+
+**Deploy gotcha:** GitHub Pages caches ~10 min — **bump `?v=<date>` on every asset in
+`config-tool-web-v2/index.html` on every deploy**, and verify with `curl`, never the browser.
+
+---
+
+**Original plan (2026-07-08) below, kept for the record.**
+
 **Status:** PLAN ONLY — do not start implementation yet.
 **Date:** 2026-07-08
 

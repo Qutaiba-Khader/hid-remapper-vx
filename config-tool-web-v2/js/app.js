@@ -162,6 +162,15 @@ function wireShell() {
 // emulated-output profiles, indexed by our_descriptor_number (shared with Settings)
 const PROFILE_NAMES = window.HRX_STATE.PROFILES;
 
+// Has the config in APP come FROM the connected device?
+//
+// This matters because saveToDevice() sends CLEAR_MACROS / CLEAR_EXPRESSIONS / CLEAR_QUIRKS
+// and then writes whatever APP holds. The Macros tab has no editor yet and state.js ships
+// sample expressions, so saving a never-loaded APP would ERASE the device's macros and
+// overwrite its expressions with samples. We therefore load on connect, and refuse to save
+// until a load has succeeded.
+let deviceLoaded = false;
+
 // Fold a device `config` (from device.js) back into the shared APP object in place.
 // APP is a const reference held by every module, so we mutate rather than reassign.
 function applyDeviceConfig(config) {
@@ -182,25 +191,44 @@ async function handleConn(act) {
       APP.device.vidpid = info.vidpid;
       APP.device.firmware = info.firmware;
       if (!APP.device.profile) APP.device.profile = "—";
-      APP.connection = "connected"; render();
-      toast("Connected — " + info.name);
+      APP.connection = "connected";
+      deviceLoaded = false;
+
+      // Pull the device's real config immediately, so what you see (and what a later Save
+      // writes back) is the device's own state — not this page's sample data.
+      try {
+        const config = await dev.loadFromDevice();
+        applyDeviceConfig(config);
+        deviceLoaded = true;
+        render();
+        toast("Connected to " + info.name + " — loaded " + ((config.mappings && config.mappings.length) || 0) + " mappings");
+      } catch (e) {
+        render();
+        toast("Connected to " + info.name + ", but the load failed: " + String((e && e.message) || e) + " — saving is blocked until a load succeeds");
+      }
     } catch (e) {
-      APP.connection = "disconnected"; render();
+      APP.connection = "disconnected"; deviceLoaded = false; render();
       toast(String((e && e.message) || e));
     }
   } else if (act === "disconnect") {
     try { await dev.disconnect(); } catch (e) {}
-    APP.connection = "disconnected"; render(); toast("Device disconnected");
+    APP.connection = "disconnected"; deviceLoaded = false; render(); toast("Device disconnected");
   } else if (act === "load") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
     try {
       const config = await dev.loadFromDevice();
       applyDeviceConfig(config);
+      deviceLoaded = true;
       render();
       toast("Loaded " + ((config.mappings && config.mappings.length) || 0) + " mappings from device");
     } catch (e) { toast("Load failed: " + String((e && e.message) || e)); }
   } else if (act === "save") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
+    if (!deviceLoaded) {
+      // guard: see the deviceLoaded comment above — this would wipe the device's macros
+      toast("Load from the device first — saving now would erase its macros and expressions");
+      return;
+    }
     try {
       const combos = APP.mappings.filter((m) => (m.inputs || []).length > 1).length;
       const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });

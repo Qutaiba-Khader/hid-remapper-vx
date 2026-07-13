@@ -257,54 +257,85 @@
     </tr>`;
   }
 
-  /* ---------------- MACROS (32 slots, accordion) ---------------- */
-  const MACRO_PREVIEW = [
-    "Left Ctrl ↓ · C · Left Ctrl ↑",
-    "AC Home · 200ms · Menu Select",
-    "(empty)",
-  ];
+  /* ---------------- MACROS (32 slots, accordion) ----------------
+     READ-ONLY for now: this shows the macros actually held in APP.macros (i.e. what the
+     device returned on Load, or what an imported JSON carried), NOT sample data. Editing
+     is not built yet — but the data round-trips untouched through translate.js, so a
+     Load -> edit mappings -> Save cycle preserves the device's macros exactly. */
   let openMacro = -1;
 
+  // one macro = [[usage, usage, ...], ...] — each inner array is one simultaneous step
+  function macroSteps(i) {
+    const m = (APP.macros || [])[i];
+    return Array.isArray(m) ? m : [];
+  }
+  function macroPreview(i) {
+    const steps = macroSteps(i);
+    if (!steps.length) return "(empty)";
+    return steps
+      .map((step) => (step || []).map((u) => window.HRX_USAGES.usageName(u)).join(" + "))
+      .join(" · ");
+  }
+
   window.renderMacros = function (container) {
+    const used = Array.from({ length: 32 }, (_, i) => macroSteps(i).length).filter((n) => n > 0).length;
+
     const slots = Array.from({ length: 32 }, (_, i) => {
-      const preview = MACRO_PREVIEW[i] || "(empty)";
+      const preview = macroPreview(i);
+      const empty = preview === "(empty)";
       const open = openMacro === i;
       return `
       <div style="border:1px solid var(--border-bright);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;background:var(--bg-deep)">
         <button class="btn-hx" data-macro="${i}" style="width:100%;justify-content:flex-start;border:none;border-radius:0;background:${open ? "var(--hover)" : "transparent"};padding:12px 14px">
           <span style="font-family:var(--font-mono);color:var(--purple-hi);min-width:54px">Macro ${i}</span>
-          <span style="color:${preview === "(empty)" ? "var(--label)" : "var(--text-strong)"};font-weight:500">${preview}</span>
+          <span style="color:${empty ? "var(--label)" : "var(--text-strong)"};font-weight:500">${preview}</span>
           <span style="margin-left:auto;display:flex;gap:6px">
-            <span class="icon-btn" title="Clone">${ICON.clone}</span>
             <span style="transform:rotate(${open ? 180 : 0}deg);transition:transform .15s;display:grid;place-items:center">${ICON.chevron}</span>
           </span>
         </button>
-        ${open ? macroBody() : ""}
+        ${open ? macroBody(i) : ""}
       </div>`;
     }).join("");
 
     container.innerHTML = `
     <div class="panel">
-      <div class="panel-head"><div><div class="panel-title">Macros</div><div class="panel-sub">32 slots. Each macro is a sequence of usages with durations.</div></div></div>
-      <div class="panel-body">${slots}</div>
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Macros</div>
+          <div class="panel-sub">32 slots · ${used} in use. Each macro is a sequence of steps; a step can hold several usages at once.</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="setting-card" style="margin-bottom:12px">
+          <div class="sc-label">Read-only for now</div>
+          <div class="sc-help" style="margin-bottom:0">This shows the macros currently on the device (after <b>Load from device</b>) or in an imported config — not sample data. A macro editor isn't built yet, but your macros are <b>preserved exactly</b> through a Load → edit → Save cycle. To change them, use the stock config tool or <b>Edit config JSON</b> in Settings.</div>
+        </div>
+        ${slots}
+      </div>
     </div>`;
 
     $$('[data-macro]', container).forEach((b) => b.addEventListener("click", () => {
       const i = +b.dataset.macro; openMacro = openMacro === i ? -1 : i; window.renderMacros($("#tabContent"));
     }));
   };
-  function macroBody() {
-    const step = (u, d) => `
-      <div style="display:flex;gap:9px;align-items:center;padding:8px 14px">
-        <button class="usage-btn" style="--cat:var(--purple-hi);max-width:280px"><span class="u-cat-dot"></span><span class="u-name">${u}</span><span class="chev">${ICON.chevron}</span></button>
-        <input class="input-hx" value="${d}" style="width:90px;font-family:var(--font-mono)">
-        <span class="hint">ms</span>
-        <button class="icon-btn del" style="margin-left:auto">${ICON.x}</button>
-      </div>`;
-    return `<div style="border-top:1px solid var(--border-soft);padding:6px 0">
-      ${step("Left Ctrl", 0)}${step("C", 50)}
-      <div style="padding:8px 14px"><button class="btn-hx btn-ghost btn-sm">${ICON.plus}<span>Add step</span></button></div>
-    </div>`;
+
+  function macroBody(i) {
+    const steps = macroSteps(i);
+    if (!steps.length) {
+      return `<div style="border-top:1px solid var(--border-soft);padding:12px 14px;color:var(--label)">This macro slot is empty.</div>`;
+    }
+    const rows = steps.map((step, n) => {
+      const usages = (step || []).map((u) => `
+        <button class="usage-btn" style="--cat:var(--purple-hi);max-width:260px" disabled>
+          <span class="u-cat-dot"></span><span class="u-name">${window.HRX_USAGES.usageName(u)}</span>
+        </button>`).join("");
+      return `
+        <div style="display:flex;gap:9px;align-items:center;padding:8px 14px">
+          <span style="font-family:var(--font-mono);color:var(--label);min-width:36px">${n + 1}</span>
+          ${usages}
+        </div>`;
+    }).join("");
+    return `<div style="border-top:1px solid var(--border-soft);padding:6px 0">${rows}</div>`;
   }
 
   /* ---------------- EXPRESSIONS ----------------

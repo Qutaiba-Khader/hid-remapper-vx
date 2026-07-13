@@ -186,11 +186,27 @@
     const rows = APP.mappings || [];
     const usable = opts.forDevice ? rows.filter((m) => m.enabled !== false) : rows;
 
+    // An UNFINISHED row must never reach the device.
+    //   * output 0x00000000  -> the mapping fires nothing.
+    //   * a COMBO key left at 0x00000000 -> the combo is an AND with a key that can never be
+    //     pressed, so it silently never fires. (Clicking "+" inserts exactly this placeholder.)
+    // NOTE: a SINGLE input of 0x00000000 is legitimate — it is the "always on" source used to
+    // drive the RGB LED — so it is deliberately allowed through.
+    const isIncomplete = (m) => {
+      const out = normHex(m.output);
+      if (out === "0x00000000") return true;
+      const ins = m.inputs || [];
+      if (ins.length > 1 && ins.some((c) => normHex(c) === "0x00000000")) return true;
+      return false;
+    };
+
     const mappings = [];
     let nextComboId = 1;
     let comboOverflow = 0;
     let comboSkipped = 0;
+    let incomplete = 0;
     usable.forEach((m) => {
+      if (opts.forDevice && isIncomplete(m)) { incomplete++; return; }
       if ((m.inputs || []).length > 1) {
         // A combo row may be withheld from the DEVICE (master switch off, or past the
         // firmware's NCOMBOS limit) — but it must NEVER be stripped from a JSON export.
@@ -233,6 +249,7 @@
     // non-persisted hints for the caller (app.js warns the user); stripped from JSON exports
     if (comboOverflow) config.combo_overflow = comboOverflow;
     if (comboSkipped) config.combo_skipped = comboSkipped;
+    if (incomplete) config.incomplete = incomplete;
     return config;
   }
 

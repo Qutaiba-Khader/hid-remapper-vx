@@ -112,8 +112,16 @@
     const t = tintById(m.tint);
     const style = m.tint ? `style="background:${t.fill}"` : "";
     const off = m.enabled ? "" : "disabled";
+    // An unfinished row is NOT sent to the device (see translate.js isIncomplete): no output
+    // chosen, or a combo key still on its 0x00000000 placeholder — an AND with a key that can
+    // never be pressed would silently never fire. Say so on the row, before Save.
+    const needsOutput = m.output === "0x00000000";
+    const needsKey = isCombo && m.inputs.some((c) => c === "0x00000000");
+    const unfinished = needsOutput || needsKey;
+    const why = needsKey && needsOutput ? "Pick this combo's missing key and an output"
+      : needsKey ? "Pick the missing combo key" : "Pick an output";
     return `
-      <div class="wg-branch ${isCombo ? "is-combo" : "is-solo"} ${off}" data-mid="${m.id}" draggable="true" ${style}>
+      <div class="wg-branch ${isCombo ? "is-combo" : "is-solo"} ${off} ${unfinished ? "unfinished" : ""}" data-mid="${m.id}" draggable="true" ${style}>
         <div class="wire-track branch-wire" title="${isCombo ? "Combo branch — these keys must be pressed together" : "This button pressed on its own"}">
           <span class="wire-line"></span>
           <div class="wire-on">${nodes}${add}</div>
@@ -135,6 +143,7 @@
         </div>
         ${isCombo ? comboOptsHtml(m) : ""}
         ${m.enabled ? "" : `<div class="disabled-badge">Disabled</div>`}
+        ${unfinished && m.enabled ? `<div class="unfinished-badge" title="This row is not sent to the device until it is complete">${why}</div>` : ""}
       </div>`;
   }
 

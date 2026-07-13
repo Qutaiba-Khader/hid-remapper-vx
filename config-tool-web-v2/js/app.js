@@ -268,6 +268,10 @@ async function handleConn(act) {
           msg += " — " + config.combo_overflow + " combo(s) NOT sent (the firmware holds at most " +
             window.HRX_TRANSLATE.NCOMBOS + ")";
         }
+        if (config.incomplete) {
+          msg += " — " + config.incomplete + " unfinished row(s) NOT sent (pick their output, " +
+            "and every key of a combo)";
+        }
         toast(msg);
       } else {
         toast("Save failed: " + ((res && res.error) || "unknown"));

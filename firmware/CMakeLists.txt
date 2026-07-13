@@ -316,8 +316,9 @@ if(PICO_BOARD STREQUAL "pico_w")
         src/tick.cc
         src/activity_led.cc
         src/ps_auth.cc
-        src/app_driver.cc
-        src/xbox.cc
+        # NO app_driver.cc / xbox.cc / out_report.cc: those are USB HOST class drivers (they pull in
+        # usb_midi_host.h and tuh_*). This build has no host -- the input arrives over Bluetooth.
+        # remapper_dual_a is the other device-only target and omits exactly the same files.
         src/ble/ble_host.c
         src/ble/ble_bridge.c
     )

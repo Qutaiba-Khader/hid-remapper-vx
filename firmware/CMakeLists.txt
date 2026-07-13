@@ -290,6 +290,21 @@ if(PICO_BOARD STREQUAL "pico_w")
         src/ble/ble_host.c
     )
     target_include_directories(remapper_picow_ble PRIVATE src/ble)
+
+    # WHICH BLE DEVICE TO CONNECT TO.
+    # Empty (the default) = the old behaviour: connect to the first advertiser carrying the HID
+    # service UUID. That misses most real devices -- a scan of one desk found 7 BLE devices and
+    # only ONE set the flag, and it was a stranger's.
+    # Set an address to connect to exactly that device instead:
+    #     cmake .. -DBLE_TARGET_ADDR=68:FC:CA:B4:43:B7
+    # This is the general mechanism the web tool will drive once you can pick from a scan list;
+    # the CMake option only exists so it can be tested before that UI is built.
+    set(BLE_TARGET_ADDR "" CACHE STRING "Connect only to this BLE MAC (blank = any HID advertiser)")
+    if(NOT BLE_TARGET_ADDR STREQUAL "")
+        target_compile_definitions(remapper_picow_ble PRIVATE BLE_TARGET_ADDR="${BLE_TARGET_ADDR}")
+        message(STATUS "BLE target address: ${BLE_TARGET_ADDR}")
+    endif()
+
     target_link_libraries(remapper_picow_ble
         pico_stdlib
         pico_cyw43_arch_none

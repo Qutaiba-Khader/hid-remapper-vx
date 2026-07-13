@@ -12,6 +12,11 @@ on:
       - 'firmware/CMakeLists.txt'
       - '.github/workflows/build-picow.yml'
   workflow_dispatch:
+    inputs:
+      ble_target_addr:
+        description: 'Connect ONLY to this BLE MAC (blank = any device advertising the HID UUID). Not device-specific: this is the same knob the web tool will drive once you can pick from a scan list.'
+        required: false
+        default: ''
 defaults:
   run:
     shell: bash --noprofile --norc -x -e -o pipefail {0}
@@ -32,7 +37,7 @@ jobs:
         run: |
           mkdir build-picow
           cd build-picow
-          PICO_BOARD=pico_w cmake ..
+          PICO_BOARD=pico_w cmake .. -DBLE_TARGET_ADDR="${{ github.event.inputs.ble_target_addr }}"
           make -j$(nproc) remapper_picow remapper_picow_ble
           cd ..
           mkdir -p artifacts

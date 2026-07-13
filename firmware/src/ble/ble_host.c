@@ -50,6 +50,7 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 #include <btstack_tlv.h>
 
 #include "btstack_config.h"
@@ -90,6 +91,60 @@ static hid_protocol_mode_t protocol_mode = HID_PROTOCOL_MODE_REPORT;
 
 // SDP
 static uint8_t hid_descriptor_storage[500];
+
+/* ---- WHICH DEVICE DO WE CONNECT TO? ------------------------------------------------------
+   The BTstack example connects to the first advertiser that carries the HID service UUID
+   (0x1812). On a real desk that is close to useless: a scan here saw 7 BLE devices and only
+   ONE set the flag -- a stranger's keyboard -- while every device the user actually owns,
+   including a HID remote that works fine with a phone, advertised hid=0.
+
+   So: if a TARGET ADDRESS is set we connect to exactly that device and ignore the flag. This
+   is the general mechanism -- the web tool will scan, show you the list (address + name +
+   RSSI), and set the target to whichever device you pick. It is not specific to any product.
+
+   BLE_TARGET_ADDR can be set at build time, e.g.
+       -DBLE_TARGET_ADDR="68:FC:CA:B4:43:B7"
+   Leave it undefined and the old advertise-HID behaviour applies.                            */
+static bd_addr_t target_addr;
+static bool target_addr_set = false;
+
+static bool ble_has_target_addr(void){
+    return target_addr_set;
+}
+
+static bool ble_addr_matches_target(const bd_addr_t addr){
+    return memcmp(addr, target_addr, sizeof(bd_addr_t)) == 0;
+}
+
+void ble_host_set_target_addr(const char * addr_str){
+    if ((addr_str == NULL) || (addr_str[0] == 0)) {
+        target_addr_set = false;
+        return;
+    }
+    target_addr_set = sscanf_bd_addr(addr_str, target_addr) == 1;
+    printf("BLE target address: %s (%s)\n", addr_str, target_addr_set ? "set" : "PARSE FAILED");
+}
+
+/* Pull the advertised local name (AD types 0x08 shortened / 0x09 complete) out of a report.
+   A MAC address alone tells you nothing about which device is which. */
+static void adv_event_get_name(const uint8_t * packet, char * out, uint16_t out_size){
+    out[0] = 0;
+    const uint8_t * ad_data = gap_event_advertising_report_get_data(packet);
+    uint8_t ad_len = gap_event_advertising_report_get_data_length(packet);
+
+    ad_context_t ctx;
+    for (ad_iterator_init(&ctx, ad_len, ad_data); ad_iterator_has_more(&ctx); ad_iterator_next(&ctx)){
+        uint8_t type = ad_iterator_get_data_type(&ctx);
+        if ((type != BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME) &&
+            (type != BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME)) continue;
+        uint8_t size = ad_iterator_get_data_len(&ctx);
+        const uint8_t * data = ad_iterator_get_data(&ctx);
+        if (size >= out_size) size = out_size - 1;
+        memcpy(out, data, size);
+        out[size] = 0;
+        if (type == BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME) return;  // prefer the complete name
+    }
+}
 
 // used to implement connection timeout and reconnect timer
 static btstack_timer_source_t connection_timer;
@@ -354,10 +409,34 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 case GAP_EVENT_ADVERTISING_REPORT:
                     if (app_state != W4_HID_DEVICE_FOUND) break;
                     {
-                        bd_addr_t _a; gap_event_advertising_report_get_address(packet, _a);
-                        printf("Adv from %s, hid=%d\n", bd_addr_to_str(_a), (int) adv_event_contains_hid_service(packet));
+                        bd_addr_t _a;
+                        gap_event_advertising_report_get_address(packet, _a);
+                        bool has_hid = adv_event_contains_hid_service(packet);
+
+                        // Log the advertised NAME as well as the address. Without it every device is
+                        // an anonymous MAC and you cannot tell which one is yours -- and the HID
+                        // flag is useless for picking: on a real desk, 6 of 7 devices advertise
+                        // hid=0 (including remotes that ARE HID devices), and the one that sets it
+                        // may be a stranger's keyboard.
+                        char name[32] = "";
+                        adv_event_get_name(packet, name, sizeof(name));
+                        printf("Adv %s  hid=%d  rssi=%d  name=\"%s\"\n",
+                               bd_addr_to_str(_a), (int) has_hid,
+                               (int) (int8_t) gap_event_advertising_report_get_rssi(packet), name);
+
+                        // WHICH DEVICE DO WE CONNECT TO?
+                        //   * If a target address is set, ONLY that device. (This is the general
+                        //     mechanism: the web tool will set it after you pick from a scan list.
+                        //     It is not tied to any one product.)
+                        //   * Otherwise fall back to "advertises the HID UUID", which is what the
+                        //     BTstack example does -- and which misses most real devices.
+                        if (ble_has_target_addr()) {
+                            if (!ble_addr_matches_target(_a)) break;
+                            printf("Target matched.\n");
+                        } else if (!has_hid) {
+                            break;
+                        }
                     }
-                    if (adv_event_contains_hid_service(packet) == false) break;
                     // stop scan
                     gap_stop_scan();
                     // store remote device address and type
@@ -483,6 +562,13 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
 /* LISTING_END */
 
 void ble_host_init(void){
+    // Build-time target, e.g. -DBLE_TARGET_ADDR="68:FC:CA:B4:43:B7".
+    // At runtime the web tool will call ble_host_set_target_addr() with whatever device you
+    // picked from the scan list -- this define just lets us test without the UI in place.
+#ifdef BLE_TARGET_ADDR
+    ble_host_set_target_addr(BLE_TARGET_ADDR);
+#endif
+
 
     if (cyw43_arch_init()) { printf("cyw43_arch_init failed\n"); return; }
     printf("init: cyw43 ok\n"); sleep_ms(60);

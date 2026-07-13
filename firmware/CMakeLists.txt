@@ -27,6 +27,13 @@ if((PICO_BOARD STREQUAL "pico") OR (PICO_BOARD STREQUAL "pico2"))
 add_compile_definitions(GPIO_VALID_PINS_BASE=0b00011100011111111111111111111111)
 endif()
 
+# The Pico W has no board header in src/boards/, so it never got GPIO_VALID_PINS_BASE and the BLE
+# remapper would not compile. Same pin layout as the plain Pico -- except GP23/24/25/29 belong to
+# the CYW43 (wireless) chip and must never be exposed; remapper_picow_ble.cc masks those out.
+if((PICO_BOARD STREQUAL "pico_w") OR (PICO_BOARD STREQUAL "pico2_w"))
+add_compile_definitions(GPIO_VALID_PINS_BASE=0b00011100011111111111111111111111)
+endif()
+
 
 add_executable(remapper
     src/main.cc
@@ -311,7 +318,14 @@ if(PICO_BOARD STREQUAL "pico_w")
         src/ble/ble_host.c
         src/ble/ble_bridge.c
     )
-    target_include_directories(remapper_picow_ble PRIVATE src src/ble)
+    # tusb_config_DEVICE, not _both: this build is a USB DEVICE only. There is no USB host --
+    # the input arrives over Bluetooth. (Without this, tusb.h pulls in no device API at all and
+    # every tud_* call is "not declared in this scope".)
+    target_include_directories(remapper_picow_ble PRIVATE
+        src
+        src/tusb_config_device
+        src/ble
+    )
 
     # ---- THE FLASH LANDMINE ----
     # hid-remapper keeps its config in the LAST flash sector (main.cc CONFIG_OFFSET_IN_FLASH =

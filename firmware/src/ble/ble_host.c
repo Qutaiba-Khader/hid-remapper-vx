@@ -595,6 +595,32 @@ void ble_host_init(void){
     hids_client_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
     printf("init: hids_client\n"); sleep_ms(60);
 
+    // -DBLE_CLEAR_BONDS=ON -> forget every bond at boot, so we PAIR FRESH instead of
+    // re-encrypting a bond the peer may no longer honour. The hardware log showed
+    // "Re-encryption complete, success" and then HID discovery hanging forever -- a stale bond
+    // is the prime suspect for a peer that accepts the link but will not serve its GATT db.
+#ifdef BLE_CLEAR_BONDS
+    {
+        int deleted = 0;
+        int max = le_device_db_max_count();
+        for (int i = 0; i < max; i++){
+            int addr_type = BD_ADDR_TYPE_UNKNOWN;
+            bd_addr_t addr;
+            sm_key_t irk;
+            le_device_db_info(i, &addr_type, addr, irk);
+            if (addr_type == BD_ADDR_TYPE_UNKNOWN) continue;
+            le_device_db_remove(i);
+            deleted++;
+        }
+        // also drop the "last connected device" tag so we do not try to reconnect to it
+        btstack_tlv_get_instance(&btstack_tlv_singleton_impl, &btstack_tlv_singleton_context);
+        if (btstack_tlv_singleton_impl){
+            btstack_tlv_singleton_impl->delete_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD);
+        }
+        printf("init: BONDS CLEARED (%d) -- will pair fresh\n", deleted); sleep_ms(60);
+    }
+#endif
+
     // register for events from HCI
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);

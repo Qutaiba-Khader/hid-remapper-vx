@@ -20,6 +20,7 @@
 
 #include <tusb.h>
 
+#include "hardware/gpio.h"   // GPIO_OVERRIDE_LOW / GPIO_OVERRIDE_NORMAL
 #include "hardware/structs/ioqspi.h"
 #include "hardware/structs/sio.h"
 #include "hardware/sync.h"

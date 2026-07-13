@@ -80,6 +80,13 @@ function makeComboEngine() {
             if (!all_down) {
                 combo.latched = false;
                 input_state[combo.out_state] = 0;
+                // PENDING: partially down, window not yet expired -> hold the consuming members
+                // back, because a press once sent to the host cannot be un-sent.
+                if (combo.window_us > 0 && first_rise !== UINT64_MAX && now - first_rise <= combo.window_us) {
+                    for (const member of combo.members) {
+                        if (member.consume) combo_consumed[member.input_state] = 1;
+                    }
+                }
                 continue;
             }
 
@@ -124,6 +131,7 @@ function makeComboEngine() {
 function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
     const input_state = new Int32Array(MAX_INPUT_STATES * 2);
     const combo_consumed = new Uint8Array(MAX_INPUT_STATES);
+    const combo_deferred = new Uint8Array(MAX_INPUT_STATES);
     let layer_state_mask = 1;
     let used = 0;
     const slotOf = new Map();
@@ -194,10 +202,14 @@ function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
     }
 
     /* ---------- process_mapping() ---------- */
+    const monitored = []; // what the web tool's Monitor tab would show for the combo slots
+
     function evaluate_combos(now) {
         combo_consumed.fill(0);
-        for (const combo of combos) {
+        for (let i = 0; i < combos.length; i++) {
+            const combo = combos[i];
             if (!combo.members.length || combo.out === null) continue;
+
             let all_down = true, first = UINT64_MAX, last = 0;
             for (const mem of combo.members) {
                 if (input_state[mem.input_state] !== 0 && input_state[mem.input_state + PREV] === 0) mem.rise_at = now;
@@ -205,23 +217,55 @@ function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
                 if (mem.rise_at < first) first = mem.rise_at;
                 if (mem.rise_at > last) last = mem.rise_at;
             }
-            if (!all_down) { combo.latched = false; input_state[combo.out] = 0; continue; }
-            if (!combo.latched) combo.latched = combo.window_us === 0 || last - first <= combo.window_us;
-            input_state[combo.out] = combo.latched ? 1 : 0;
-            if (combo.latched) for (const mem of combo.members) if (mem.consume) combo_consumed[mem.input_state] = 1;
+
+            let new_out = 0;
+            if (!all_down) {
+                combo.latched = false;
+                // PENDING: partially down, window not yet expired -> hold back the consuming
+                // members, because a press once sent to the host cannot be un-sent.
+                if (combo.window_us > 0 && first !== UINT64_MAX && now - first <= combo.window_us) {
+                    for (const mem of combo.members) if (mem.consume) combo_consumed[mem.input_state] = 1;
+                }
+            } else {
+                if (!combo.latched) combo.latched = combo.window_us === 0 || last - first <= combo.window_us;
+                new_out = combo.latched ? 1 : 0;
+                if (combo.latched) for (const mem of combo.members) if (mem.consume) combo_consumed[mem.input_state] = 1;
+            }
+
+            if (input_state[combo.out] !== new_out) monitored.push({ combo: i + 1, value: new_out });
+            input_state[combo.out] = new_out;
+        }
+
+        // deliver a held-back press the host never saw, with a real rising edge
+        for (const combo of combos) {
+            for (const mem of combo.members) {
+                const slot = mem.input_state;
+                if (input_state[slot] === 0) {
+                    combo_deferred[slot] = 0;
+                } else if (combo_consumed[slot]) {
+                    if (input_state[slot + PREV] === 0) combo_deferred[slot] = 1;
+                } else if (combo_deferred[slot]) {
+                    combo_deferred[slot] = 0;
+                    input_state[slot + PREV] = 0; // re-arm the edge the deferral swallowed
+                }
+            }
         }
     }
     const is_consumed = (src) => combo_consumed[src.input_state] === 1;
+    const rising = (src) => input_state[src.input_state] !== 0 && input_state[src.input_state + PREV] === 0;
 
     // one pass of the mapping engine; returns the set of target usages the host sees as pressed
+    const lastEdges = new Set(); // source usages with an un-consumed rising edge -> macros fire
     function frame(now) {
         evaluate_combos(now);
+        lastEdges.clear();
         const out = new Set();
         for (const [target, sources] of reverse) {
             let value = 0;
             for (const src of sources) {
                 if (is_consumed(src)) continue; // the per-member consume flag
                 if (!(layer_state_mask & src.layer_mask)) continue;
+                if (rising(src)) lastEdges.add(src.usage);
                 if (input_state[src.input_state] !== 0) {
                     value += Math.trunc(input_state[src.input_state] * src.scaling / 1000);
                 }
@@ -238,6 +282,10 @@ function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
         release: (u, p = 0) => { input_state[ptr(u, p)] = 0; },
         setLayers: (m) => { layer_state_mask = m; },
         isPassthrough: (u) => (reverse.get(u) || []).some((s) => s.passthrough),
+        // a rising edge on this source this frame -> a macro / tap-hold / sticky bound to it fires
+        firedEdge: (u) => lastEdges.has(u),
+        // what the web tool's Monitor tab would have shown for the combo state slots
+        monitorLog: () => monitored,
     };
 }
 

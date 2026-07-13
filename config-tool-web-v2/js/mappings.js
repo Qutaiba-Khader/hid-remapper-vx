@@ -54,7 +54,8 @@
           <span class="unit">ms</span>
         </label>
         <span class="chk mode word ${consume ? "on" : ""}" data-cconsume="1" data-mid="${m.id}"
-              title="Consume — while the combo is held, its keys do not fire their own mappings">Consume</span>
+              title="Consume — while the combo is held, its keys do not fire their own mappings. Each key is held back for the window above, so it is delayed by that long when pressed on its own.">Consume</span>
+        ${consume && Number(win) === 0 ? `<span class="combo-warn" title="Two keys can never arrive in the same USB frame, so whichever one you press first would be sent to the PC before the combo forms — a real, brief keypress or mouse click. The firmware avoids that by holding the key back until the window runs out, but a window of 0 gives it no deadline to wait for. Set a window (50 ms is a good start) or turn Consume off.">Set a window — Consume with 0 leaks the first key</span>` : ""}
         ${off ? `<span class="combo-off-tag" title="Combos are switched off in Settings — this row is kept in your config but is NOT sent to the device">Not sent — combos off</span>` : ""}
       </div>`;
   }

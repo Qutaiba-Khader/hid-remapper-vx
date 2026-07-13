@@ -98,6 +98,7 @@ uint8_t layer_state_mask = 1;
 #define NCOMBOS 16
 std::vector<combo_t> combos;               // index = combo id - 1
 uint8_t combo_consumed[MAX_INPUT_STATES];  // per-frame: this input slot is owned by an active combo
+uint8_t combo_deferred[MAX_INPUT_STATES];  // sticky: this key's press was held back and never sent
 #endif
 
 std::vector<int32_t*> relative_usages;  // input_state pointers
@@ -438,6 +439,7 @@ void set_mapping_from_config() {
     combos.clear();
     combos.resize(NCOMBOS);
     memset(combo_consumed, 0, sizeof(combo_consumed));
+    memset(combo_deferred, 0, sizeof(combo_deferred));
 #endif
 #ifdef RGB_LED_ENABLED
     active_led_targets.clear();
@@ -1188,7 +1190,8 @@ int32_t eval_expr(uint8_t expr, uint64_t now, bool auto_repeat) {
 static void evaluate_combos(uint64_t now) {
     memset(combo_consumed, 0, sizeof(combo_consumed));
 
-    for (auto& combo : combos) {
+    for (size_t i = 0; i < combos.size(); i++) {
+        combo_t& combo = combos[i];
         if (combo.members.empty() || (combo.out_state == NULL)) {
             continue;
         }
@@ -1214,25 +1217,77 @@ static void evaluate_combos(uint64_t now) {
             }
         }
 
+        int32_t new_out = 0;
+
         if (!all_down) {
             combo.latched = false;
-            *combo.out_state = 0;
-            continue;
-        }
 
-        // Fire once every member went down within the window; then LATCH, so the combo stays
-        // active while the keys are held even after the window has passed.
-        if (!combo.latched) {
-            combo.latched = (combo.window_us == 0) || ((last_rise - first_rise) <= combo.window_us);
-        }
-
-        *combo.out_state = combo.latched ? 1 : 0;
-
-        if (combo.latched) {
-            for (auto const& member : combo.members) {
-                if (member.consume) {
-                    combo_consumed[member.input_state - input_state] = 1;
+            // PENDING: some members are down and the window has not run out yet, so we do not
+            // know yet whether this combo will complete. Hold back its consuming members'
+            // output until we do.
+            //
+            // Without this, consume is broken in practice: two keys can never land in the same
+            // 1ms USB frame, so the member that lands first is passed through to the host for
+            // the few milliseconds before the other one arrives and consumption kicks in. The
+            // host sees a real (very short) keypress or MOUSE CLICK every single time the combo
+            // is used. You cannot un-send a click, so the only fix is to not send it yet.
+            //
+            // The price is that a consuming member key is delayed by up to window_us when it is
+            // pressed on its own. That is the standard combo trade-off (QMK's COMBO_TERM).
+            // window_us == 0 means "no timing check", so there is no deadline to defer until and
+            // no deferral happens -- with a 0 window, consume still leaks the leading press.
+            if ((combo.window_us > 0) && (first_rise != UINT64_MAX) && ((now - first_rise) <= combo.window_us)) {
+                for (auto const& member : combo.members) {
+                    if (member.consume) {
+                        combo_consumed[member.input_state - input_state] = 1;
+                    }
                 }
+            }
+        } else {
+            // Fire once every member went down within the window; then LATCH, so the combo stays
+            // active while the keys are held even after the window has passed.
+            if (!combo.latched) {
+                combo.latched = (combo.window_us == 0) || ((last_rise - first_rise) <= combo.window_us);
+            }
+
+            new_out = combo.latched ? 1 : 0;
+
+            if (combo.latched) {
+                for (auto const& member : combo.members) {
+                    if (member.consume) {
+                        combo_consumed[member.input_state - input_state] = 1;
+                    }
+                }
+            }
+        }
+
+        // Make the combo visible in the web tool's monitor. Without this the combo is a black
+        // box on real hardware: you can see the member keys go down and you can see (or fail to
+        // see) the output, with no way to tell which half is broken.
+        if (monitor_enabled && (*combo.out_state != new_out)) {
+            monitor_usage(COMBO_USAGE_PAGE | (i + 1), new_out, 0);
+        }
+
+        *combo.out_state = new_out;
+    }
+
+    // Deliver a press we held back but never actually sent. A member whose press was deferred
+    // (so the host has not seen it) and which is no longer consumed means the combo did not
+    // complete: the key must now behave as if it had just been pressed. Clearing prev_input_state
+    // re-creates the rising edge the deferral swallowed, so macros, tap/hold and sticky bound to
+    // that key still fire -- just window_us late.
+    for (auto const& combo : combos) {
+        for (auto const& member : combo.members) {
+            size_t slot = member.input_state - input_state;
+            if (*member.input_state == 0) {
+                combo_deferred[slot] = 0;  // released; nothing outstanding
+            } else if (combo_consumed[slot]) {
+                if (*(member.input_state + PREV_STATE_OFFSET) == 0) {
+                    combo_deferred[slot] = 1;  // pressed while suppressed: the host never saw it
+                }
+            } else if (combo_deferred[slot]) {
+                combo_deferred[slot] = 0;
+                *(member.input_state + PREV_STATE_OFFSET) = 0;  // re-arm the edge
             }
         }
     }

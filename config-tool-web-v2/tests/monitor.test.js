@@ -159,3 +159,39 @@ test("the monitor stream is re-enabled after a reconnect", async () => {
   assert.strictEqual(cmd.arg, 1, "the monitor was on before — it must come back on");
   await D.disconnect();
 });
+
+/* ---- the combo is no longer a black box on hardware ---- */
+
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const readSrc = (rel) => fs.readFileSync(path.join(__dirname, "..", rel), "utf8");
+
+// usages.js is a classic browser script (it assigns window.HRX_USAGES), so give it a window
+const loadUsages = () => {
+  const sandbox = { window: {} };
+  vm.runInNewContext(readSrc("js/usages.js"), sandbox);
+  return sandbox.window.HRX_USAGES;
+};
+
+test("the monitor names a combo state slot instead of showing raw hex", () => {
+  // The firmware reports each combo's internal state on page 0xFFFB (remapper.cc,
+  // evaluate_combos -> monitor_usage) so you can see whether a combo actually LATCHED.
+  // Without a label these arrive as "0xfffb0001" and mean nothing to the user.
+  const { usageName } = loadUsages();
+  assert.strictEqual(usageName("0xfffb0001"), "Combo 1");
+  assert.strictEqual(usageName("0xfffb0003"), "Combo 3");
+  assert.strictEqual(usageName("0x000c00e2"), "Mute", "and the normal catalog must still work");
+});
+
+test("Consume with a 0 window is warned about, not silently allowed", () => {
+  // With no window the firmware has no deadline to defer the leading key to, so it passes
+  // through for the few ms before the combo forms -- a real, brief click. See
+  // firmware/sim/combo.test.js "window 0 + consume still leaks the leading press".
+  const m = readSrc("js/mappings.js");
+  assert.ok(/consume && Number\(win\) === 0/.test(m),
+    "the row must detect the Consume + 0-window combination");
+  assert.ok(/combo-warn/.test(m), "and show a warning badge");
+  assert.ok(/\.combo-warn/.test(readSrc("css/mappings.css")),
+    "which must actually be styled, or it is invisible");
+});

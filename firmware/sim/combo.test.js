@@ -127,12 +127,15 @@ test('a partial release then a re-press outside the window does not re-fire', ()
     assert.strictEqual(e.comboOn(0), false);
 });
 
-test('consume marks member slots ONLY while the combo is latched', () => {
+test('consume covers the PENDING window as well as the latch', () => {
     const e = makeComboEngine();
     e.addCombo({ members: [{ key: 'A', consume: true }, { key: 'B', consume: true }], window_ms: 50 });
 
     e.press('A'); frame(e, 1_000_000);
-    assert.strictEqual(e.consumed('A'), false, 'not consumed while the combo is inactive');
+    assert.strictEqual(e.comboOn(0), false, 'the combo has not fired yet');
+    assert.strictEqual(e.consumed('A'), true,
+        'but A is already held back — we do not yet know whether the combo will complete, and a ' +
+        'press sent to the host cannot be un-sent');
 
     e.press('B'); frame(e, 1_010_000);
     assert.strictEqual(e.comboOn(0), true);
@@ -142,6 +145,15 @@ test('consume marks member slots ONLY while the combo is latched', () => {
     e.release('A'); frame(e, 1_100_000);
     assert.strictEqual(e.consumed('A'), false, 'consumption cleared on release');
     assert.strictEqual(e.consumed('B'), false);
+});
+
+test('the pending hold expires with the window — it does not hold the key forever', () => {
+    const e = makeComboEngine();
+    e.addCombo({ members: [{ key: 'A', consume: true }, { key: 'B', consume: true }], window_ms: 50 });
+    e.press('A'); frame(e, 1_000_000);
+    assert.strictEqual(e.consumed('A'), true, 'held back inside the window');
+    frame(e, 1_051_000);
+    assert.strictEqual(e.consumed('A'), false, 'released once the window has passed');
 });
 
 test('consume=false leaves the keys firing (the combo is additive)', () => {
@@ -227,14 +239,99 @@ const withCombo = (consume = true) => makeEngine({ mappings: comboConfig(consume
 test('EACH MEMBER KEY STILL FIRES ON ITS OWN — the regression that firmware bug #8 caused', () => {
     // Combo members must NOT be marked in mapped_on_layers. When they were, their
     // unmapped-passthrough source was suppressed and a key used only in a combo went
-    // completely dead when pressed alone. This is the single most important check here.
+    // completely DEAD when pressed alone. This is the single most important check here.
+    //
+    // With consume ON the key is now held back for the window (see the deferral tests below),
+    // so "fires on its own" means "arrives once the window has passed" — not "never arrives".
     for (const [key, name] of [[VOLUP, 'Vol+'], [VOLDN, 'Vol-']]) {
-        const e = withCombo();
+        const e = withCombo(true);
         assert.ok(e.isPassthrough(key), name + ' must keep its passthrough source');
         e.press(key);
-        const out = e.frame(1_000_000);
+        e.frame(1_000_000);
+        const out = e.frame(1_051_000); // 51ms later: the 50ms window has expired
         assert.deepStrictEqual([...out], [key], name + ' alone must reach the host, got ' + show(out));
     }
+
+    // and with consume OFF there is nothing to hold back, so it is immediate
+    for (const [key, name] of [[VOLUP, 'Vol+'], [VOLDN, 'Vol-']]) {
+        const e = withCombo(false);
+        e.press(key);
+        const out = e.frame(1_000_000);
+        assert.deepStrictEqual([...out], [key], name + ' must be immediate with consume off, got ' + show(out));
+    }
+});
+
+/* --- the deferral: consume is meaningless without it (firmware bug #12) --- */
+
+test('a rolling press does NOT leak a click of the leading button', () => {
+    // Two buttons can never land in the same 1ms USB frame. Before the deferral, the button
+    // that landed first was passed through for the few ms until the second one arrived and
+    // consumption kicked in — so every use of the combo sent the host a real, short click.
+    // You cannot un-send a click. The only fix is to not send it yet.
+    const e = withCombo(true);
+    e.press(VOLUP);
+    for (let t = 0; t < 8; t++) {
+        const out = e.frame(1_000_000 + t * 1000); // 8 frames = 8ms with only Vol+ down
+        assert.strictEqual(out.size, 0, 'nothing may reach the host while the combo is pending, got ' + show(out));
+    }
+    e.press(VOLDN);
+    const out = e.frame(1_008_000);
+    assert.deepStrictEqual([...out], [MUTE], 'and then ONLY the combo output: ' + show(out));
+});
+
+test('when the combo does NOT complete, the held-back press is delivered late, with a real edge', () => {
+    // The deferred press must still arrive — and it must arrive as a rising EDGE, or a macro /
+    // tap-hold / sticky bound to that key would silently never fire.
+    const e = withCombo(true);
+    e.press(VOLUP);
+    assert.strictEqual(e.frame(1_000_000).size, 0, 'held back at first');
+    assert.strictEqual(e.frame(1_040_000).size, 0, 'still inside the 50ms window');
+
+    const out = e.frame(1_051_000); // the window has now expired: the combo failed
+    assert.deepStrictEqual([...out], [VOLUP], 'the press must be delivered: ' + show(out));
+    assert.ok(e.firedEdge(VOLUP),
+        'and as a RISING EDGE — otherwise a macro bound to this key would never fire');
+});
+
+test('the deferred key stays down (it is a press, not a blip)', () => {
+    const e = withCombo(true);
+    e.press(VOLUP);
+    e.frame(1_000_000);
+    e.frame(1_051_000);
+    for (let t = 60; t < 200; t += 20) {
+        assert.ok(e.frame(1_000_000 + t * 1000).has(VOLUP), 'must stay held at t=' + t + 'ms');
+    }
+    e.release(VOLUP);
+    assert.strictEqual(e.frame(1_300_000).size, 0, 'and release normally');
+});
+
+test('consume OFF means NO deferral — zero added latency', () => {
+    const e = withCombo(false);
+    e.press(VOLUP);
+    const out = e.frame(1_000_000);
+    assert.deepStrictEqual([...out], [VOLUP], 'a non-consuming member must never be delayed');
+    assert.ok(e.firedEdge(VOLUP));
+});
+
+test('window 0 + consume still leaks the leading press (a 0 window has no deadline to defer to)', () => {
+    // Pinned deliberately: with no window there is no point at which we could give up and
+    // release the key, so deferral cannot apply. The web tool warns about this combination.
+    const cfg = comboConfig(true);
+    cfg[0].scaling = 0; cfg[1].scaling = 0;
+    const e = makeEngine({ mappings: cfg, ourUsages: OUR });
+    e.press(VOLUP);
+    assert.deepStrictEqual([...e.frame(1_000_000)], [VOLUP],
+        'documented limitation: use a window > 0 with Consume');
+});
+
+test('the combo state is reported to the monitor, so it is not a black box on hardware', () => {
+    const e = withCombo(true);
+    e.press(VOLUP); e.press(VOLDN);
+    e.frame(1_000_000);
+    e.release(VOLDN);
+    e.frame(1_100_000);
+    assert.deepStrictEqual(e.monitorLog(), [{ combo: 1, value: 1 }, { combo: 1, value: 0 }],
+        'the Monitor tab must see the combo latch and unlatch');
 });
 
 test('an unrelated key is untouched by the combo', () => {
@@ -380,6 +477,25 @@ test('the nRF52840 build defines COMBO_ENABLED too (firmware bug #9)', () => {
     const bt = fs.readFileSync(path.join(__dirname, '..', '..', 'firmware-bluetooth', 'CMakeLists.txt'), 'utf8');
     assert.match(bt, /add_compile_definitions\(COMBO_ENABLED\)/,
         'the Bluetooth build shares remapper.cc but not the option — it must define the macro itself');
+});
+
+test('the pending-deferral exists in the firmware (firmware bug #12 must stay fixed)', () => {
+    assert.match(CC, /combo\.window_us > 0\) && \(first_rise != UINT64_MAX\) && \(\(now - first_rise\) <= combo\.window_us\)/,
+        'without the pending branch, consume leaks a real click of whichever member lands first — ' +
+        'two keys cannot arrive in the same 1ms USB frame');
+    assert.match(CC, /combo_deferred\[slot\] = 0;\s*\n\s*\*\(member\.input_state \+ PREV_STATE_OFFSET\) = 0;/,
+        'a held-back press must be re-armed as a rising edge when the combo fails, or macros / ' +
+        'tap-hold / sticky bound to that key would silently never fire');
+    assert.match(CC, /memset\(combo_deferred, 0, sizeof\(combo_deferred\)\)/,
+        'combo_deferred must be cleared on config reload');
+});
+
+test('the combo state is reported to the monitor', () => {
+    assert.match(CC, /monitor_usage\(COMBO_USAGE_PAGE \| \(i \+ 1\), new_out, 0\)/,
+        'without this a combo is a black box on hardware: you can see the keys go down and see ' +
+        'the output missing, with no way to tell which half broke');
+    assert.match(CC, /if \(monitor_enabled && \(\*combo\.out_state != new_out\)\)/,
+        'and only on a CHANGE, so it cannot flood the monitor report');
 });
 
 test('NCOMBOS agrees between the firmware and the simulation', () => {

@@ -270,6 +270,15 @@
   border-radius: 6px; padding: 4px 8px;
 }
 
+/* Consume with a 0 window: the firmware has no deadline to defer the first key to, so it leaks
+   a real (brief) keypress / mouse click before the combo forms. Warn, don't silently allow. */
+.combo-warn {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase;
+  color: #fff; background: #6b4a12; border: 1px solid #8a6316;
+  border-radius: 6px; padding: 4px 8px; cursor: help;
+}
+
 /* COMBO badge prefix (badge layout) */
 .combo-badge {
   font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;

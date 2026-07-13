@@ -159,6 +159,49 @@
   color: #fff; font-family: var(--font-mono); font-size: 11px;
 }
 .combo-win .unit { font-family: var(--font-mono); font-size: 9.5px; color: #fff; opacity: 0.8; }
+/* ============================================================
+   MACROS — 32 slots, each an editable sequence of steps
+   ============================================================ */
+.macro-slot {
+  border: 1px solid var(--border-bright); border-radius: var(--radius-sm);
+  margin-bottom: 8px; overflow: hidden; background: var(--bg-deep);
+}
+.macro-slot.open { border-color: var(--purple-hi); box-shadow: 0 0 0 3px var(--purple-glow); }
+.macro-head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; background: transparent; border: none; cursor: pointer; text-align: left;
+}
+.macro-head:hover { background: var(--hover); }
+.macro-n { font-family: var(--font-mono); font-weight: 700; color: var(--purple-hi); min-width: 74px; }
+.macro-preview { color: #fff; font-weight: 500; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.macro-preview.empty { color: var(--label); font-style: italic; }
+.macro-usage { font-family: var(--font-mono); font-size: 10.5px; color: #fff; opacity: 0.55; flex: none; }
+.macro-chev { display: grid; place-items: center; transition: transform 0.15s; color: #fff; flex: none; }
+.macro-chev svg { width: 15px; height: 15px; }
+
+.macro-body { border-top: 1px solid var(--border-soft); padding: 8px 0 12px; }
+.macro-empty { padding: 14px; color: var(--label); }
+.macro-step { display: flex; align-items: center; gap: 10px; padding: 7px 14px; }
+.macro-step + .macro-step { border-top: 1px dashed var(--border-soft); }
+.macro-step-n {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: #fff; background: var(--bg-deep); border: 1px solid var(--border-bright);
+  border-radius: 6px; width: 24px; height: 24px; display: grid; place-items: center; flex: none;
+}
+.macro-keys { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.macro-key { position: relative; display: flex; align-items: center; min-width: 0; }
+.macro-key .usage-btn { padding-right: 26px; max-width: 240px; }
+.macro-plus {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  color: var(--purple-hi); flex: none;
+}
+.macro-step-ctrls { display: flex; gap: 4px; flex: none; }
+.macro-actions {
+  display: flex; gap: 8px; padding: 10px 14px 2px; flex-wrap: wrap;
+  border-top: 1px dashed var(--border-soft); margin-top: 6px;
+}
+
 /* a row that is not finished yet — it is NOT written to the device */
 .wg-branch.unfinished { border-left: 3px solid #f59e2e; }
 .unfinished-badge {

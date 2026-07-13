@@ -273,34 +273,43 @@
      Load -> edit mappings -> Save cycle preserves the device's macros exactly. */
   let openMacro = -1;
 
-  // one macro = [[usage, usage, ...], ...] — each inner array is one simultaneous step
+  /* A macro is a SEQUENCE OF STEPS. Each step is a list of usages pressed at the same instant, and
+     each step is held for `macro_entry_duration` ms (Settings). On the wire the steps are flattened
+     with a 0x00 separator between them (device.js), which is why the model is
+     [[usage, usage], [usage], ...].
+     Fire a macro by mapping a key to "Macro N" (usage page 0xFFF2) on the Mappings tab. */
   function macroSteps(i) {
     const m = (APP.macros || [])[i];
     return Array.isArray(m) ? m : [];
   }
+  function setMacro(i, steps) {
+    if (!Array.isArray(APP.macros)) APP.macros = Array.from({ length: 32 }, () => []);
+    APP.macros[i] = steps;
+  }
+  function redrawMacros() { window.renderMacros($("#tabContent")); }
+
   function macroPreview(i) {
     const steps = macroSteps(i);
     if (!steps.length) return "(empty)";
     return steps
       .map((step) => (step || []).map((u) => window.HRX_USAGES.usageName(u)).join(" + "))
-      .join(" · ");
+      .join("  →  ");
   }
 
   window.renderMacros = function (container) {
     const used = Array.from({ length: 32 }, (_, i) => macroSteps(i).length).filter((n) => n > 0).length;
+    const dur = (APP.settings && APP.settings.macroEntryDuration) || 1;
 
     const slots = Array.from({ length: 32 }, (_, i) => {
-      const preview = macroPreview(i);
-      const empty = preview === "(empty)";
+      const steps = macroSteps(i);
       const open = openMacro === i;
       return `
-      <div style="border:1px solid var(--border-bright);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;background:var(--bg-deep)">
-        <button class="btn-hx" data-macro="${i}" style="width:100%;justify-content:flex-start;border:none;border-radius:0;background:${open ? "var(--hover)" : "transparent"};padding:12px 14px">
-          <span style="font-family:var(--font-mono);color:var(--purple-hi);min-width:54px">Macro ${i}</span>
-          <span style="color:${empty ? "var(--label)" : "var(--text-strong)"};font-weight:500">${preview}</span>
-          <span style="margin-left:auto;display:flex;gap:6px">
-            <span style="transform:rotate(${open ? 180 : 0}deg);transition:transform .15s;display:grid;place-items:center">${ICON.chevron}</span>
-          </span>
+      <div class="macro-slot ${open ? "open" : ""}">
+        <button class="macro-head" data-macro="${i}">
+          <span class="macro-n">Macro ${i + 1}</span>
+          <span class="macro-preview ${steps.length ? "" : "empty"}">${macroPreview(i)}</span>
+          <span class="macro-usage">0xfff2${String(i + 1).padStart(4, "0")}</span>
+          <span class="macro-chev" style="transform:rotate(${open ? 180 : 0}deg)">${ICON.chevron}</span>
         </button>
         ${open ? macroBody(i) : ""}
       </div>`;
@@ -311,40 +320,157 @@
       <div class="panel-head">
         <div>
           <div class="panel-title">Macros</div>
-          <div class="panel-sub">32 slots · ${used} in use. Each macro is a sequence of steps; a step can hold several usages at once.</div>
+          <div class="panel-sub">32 slots · ${used} in use. A macro is a sequence of steps; every key in a step is pressed together, and each step is held for <b>${dur} ms</b> (Settings → Macro entry duration).</div>
         </div>
       </div>
       <div class="panel-body">
-        <div class="setting-card" style="margin-bottom:12px">
-          <div class="sc-label">Read-only for now</div>
-          <div class="sc-help" style="margin-bottom:0">This shows the macros currently on the device (after <b>Load from device</b>) or in an imported config — not sample data. A macro editor isn't built yet, but your macros are <b>preserved exactly</b> through a Load → edit → Save cycle. To change them, use the stock config tool or <b>Edit config JSON</b> in Settings.</div>
+        <div class="setting-card" style="margin-bottom:14px">
+          <div class="sc-label">How to fire a macro</div>
+          <div class="sc-help" style="margin-bottom:0">Build the steps below, then go to <b>Mappings</b>, add a mapping, and set its <b>output</b> to <b>Macro 1…32</b> (they live under “Macros” in the picker). Pressing that key runs the steps in order. Nothing reaches the device until you press <b>Save to device</b>.</div>
         </div>
         ${slots}
       </div>
     </div>`;
 
-    $$('[data-macro]', container).forEach((b) => b.addEventListener("click", () => {
-      const i = +b.dataset.macro; openMacro = openMacro === i ? -1 : i; window.renderMacros($("#tabContent"));
-    }));
+    wireMacros(container);
   };
 
   function macroBody(i) {
     const steps = macroSteps(i);
-    if (!steps.length) {
-      return `<div style="border-top:1px solid var(--border-soft);padding:12px 14px;color:var(--label)">This macro slot is empty.</div>`;
-    }
+
     const rows = steps.map((step, n) => {
-      const usages = (step || []).map((u) => `
-        <button class="usage-btn" style="--cat:var(--purple-hi);max-width:260px" disabled>
-          <span class="u-cat-dot"></span><span class="u-name">${window.HRX_USAGES.usageName(u)}</span>
-        </button>`).join("");
+      const keys = (step || []).map((u, k) => `
+        <div class="macro-key">
+          <button class="usage-btn" style="--cat:${window.HRX_USAGES.usageAccent(u)}" data-mkey="1" data-mi="${i}" data-step="${n}" data-k="${k}" title="Change this key">
+            <span class="u-cat-dot"></span>
+            <span class="u-name">${window.HRX_USAGES.usageName(u)}</span>
+            <span class="chev">${ICON.chevron}</span>
+          </button>
+          <button class="chip-x" data-mkeydel="1" data-mi="${i}" data-step="${n}" data-k="${k}" title="Remove this key from the step">${ICON.x}</button>
+        </div>`).join('<span class="macro-plus">+</span>');
+
       return `
-        <div style="display:flex;gap:9px;align-items:center;padding:8px 14px">
-          <span style="font-family:var(--font-mono);color:var(--label);min-width:36px">${n + 1}</span>
-          ${usages}
+        <div class="macro-step">
+          <span class="macro-step-n">${n + 1}</span>
+          <div class="macro-keys">
+            ${keys || `<span class="hint">empty step — add a key</span>`}
+            <button class="combo-add" data-mkeyadd="1" data-mi="${i}" data-step="${n}" title="Press another key at the same time as this step">${ICON.plus}</button>
+          </div>
+          <div class="macro-step-ctrls">
+            <button class="icon-btn" data-mstepup="1" data-mi="${i}" data-step="${n}" title="Move step up" ${n === 0 ? "disabled" : ""}>${ICON.up}</button>
+            <button class="icon-btn" data-mstepdown="1" data-mi="${i}" data-step="${n}" title="Move step down" ${n === steps.length - 1 ? "disabled" : ""}>${ICON.down}</button>
+            <button class="icon-btn del" data-mstepdel="1" data-mi="${i}" data-step="${n}" title="Delete this step">${ICON.x}</button>
+          </div>
         </div>`;
     }).join("");
-    return `<div style="border-top:1px solid var(--border-soft);padding:6px 0">${rows}</div>`;
+
+    return `
+      <div class="macro-body">
+        ${steps.length ? rows : `<div class="macro-empty">This macro is empty. Add a step to begin.</div>`}
+        <div class="macro-actions">
+          <button class="btn-hx btn-primary btn-sm" data-mstepadd="1" data-mi="${i}">${ICON.plus}<span>Add step</span></button>
+          <button class="btn-hx btn-sm" data-mclone="1" data-mi="${i}" ${steps.length ? "" : "disabled"}>${ICON.clone}<span>Copy to…</span></button>
+          <button class="btn-hx btn-sm" data-mclear="1" data-mi="${i}" ${steps.length ? "" : "disabled"}>${ICON.x}<span>Clear macro</span></button>
+        </div>
+      </div>`;
+  }
+
+  function wireMacros(root) {
+    $$('[data-macro]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.macro;
+      openMacro = openMacro === i ? -1 : i;
+      redrawMacros();
+    }));
+
+    $$('[data-mstepadd]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi;
+      const steps = macroSteps(i).slice();
+      steps.push([]);
+      setMacro(i, steps);
+      redrawMacros();
+    }));
+
+    $$('[data-mstepdel]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi, n = +b.dataset.step;
+      const steps = macroSteps(i).slice();
+      steps.splice(n, 1);
+      setMacro(i, steps);
+      redrawMacros();
+    }));
+
+    const moveStep = (attr, delta) => $$("[" + attr + "]", root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi, n = +b.dataset.step;
+      const steps = macroSteps(i).slice();
+      const to = n + delta;
+      if (to < 0 || to >= steps.length) return;
+      const [s] = steps.splice(n, 1);
+      steps.splice(to, 0, s);
+      setMacro(i, steps);
+      redrawMacros();
+    }));
+    moveStep("data-mstepup", -1);
+    moveStep("data-mstepdown", 1);
+
+    // add a key to a step — opens the REAL usage picker
+    $$('[data-mkeyadd]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi, n = +b.dataset.step;
+      window.openPicker({
+        mode: "output",
+        current: null,
+        onSelect: (code) => {
+          const steps = macroSteps(i).map((s) => s.slice());
+          if (steps[n].includes(code)) { toast("That key is already in this step"); return; }
+          steps[n].push(code);
+          setMacro(i, steps);
+          redrawMacros();
+        },
+      });
+    }));
+
+    // change an existing key
+    $$('[data-mkey]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi, n = +b.dataset.step, k = +b.dataset.k;
+      window.openPicker({
+        mode: "output",
+        current: macroSteps(i)[n][k],
+        onSelect: (code) => {
+          const steps = macroSteps(i).map((s) => s.slice());
+          steps[n][k] = code;
+          setMacro(i, steps);
+          redrawMacros();
+        },
+      });
+    }));
+
+    $$('[data-mkeydel]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi, n = +b.dataset.step, k = +b.dataset.k;
+      const steps = macroSteps(i).map((s) => s.slice());
+      steps[n].splice(k, 1);
+      setMacro(i, steps);
+      redrawMacros();
+    }));
+
+    $$('[data-mclear]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi;
+      if (!confirm("Clear Macro " + (i + 1) + "? (The device only changes when you Save.)")) return;
+      setMacro(i, []);
+      redrawMacros();
+      toast("Macro " + (i + 1) + " cleared");
+    }));
+
+    $$('[data-mclone]', root).forEach((b) => b.addEventListener("click", () => {
+      const i = +b.dataset.mi;
+      const answer = prompt("Copy Macro " + (i + 1) + " to which slot? (1-32)");
+      if (answer == null) return;
+      const target = parseInt(answer, 10);
+      if (!(target >= 1 && target <= 32)) { toast("Pick a slot between 1 and 32"); return; }
+      if (target - 1 === i) { toast("That is the same slot"); return; }
+      if (macroSteps(target - 1).length && !confirm("Macro " + target + " is not empty. Overwrite it?")) return;
+      setMacro(target - 1, macroSteps(i).map((s) => s.slice()));
+      openMacro = target - 1;
+      redrawMacros();
+      toast("Copied to Macro " + target);
+    }));
   }
 
   /* ---------------- EXPRESSIONS ----------------

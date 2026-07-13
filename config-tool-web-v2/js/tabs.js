@@ -197,6 +197,11 @@
      min=max=1 forever; the tool offered it, the user built a combo on it, and it silently did
      nothing. Save now refuses to ship one. */
   window.HRX_MON_STUCK = window.HRX_MON_STUCK || new Set();
+
+  /* Everything the Monitor has actually SEEN, exposed to the usage picker. These are the
+     controls you just pressed on the hardware in front of you — far more useful for building
+     a combo than scrolling a catalog of every usage in existence. */
+  window.HRX_MON_LIVE = () => [...monData.values()];
   let monRegistered = false;
 
   // fed by device.js -> HRX_DEVICE.onMonitor(cb); cb gets { usage, value, hub_port }

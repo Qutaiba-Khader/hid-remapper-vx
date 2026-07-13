@@ -248,3 +248,19 @@ test("a usage stuck at a constant value is flagged, and Save refuses to ship it 
   assert.ok(/HRX_MON_STUCK/.test(a) && /Save cancelled/.test(a),
     "Save must warn before shipping a mapping built on a constant usage");
 });
+
+test("buttons seen in the Monitor are offered FIRST in the input picker", () => {
+  // The Monitor already knows exactly which buttons the hardware in front of you has — you
+  // should not have to hunt a catalog of every usage in existence to combo two mouse buttons.
+  const t = readSrc("js/tabs.js");
+  assert.ok(/window\.HRX_MON_LIVE = \(\) => \[\.\.\.monData\.values\(\)\]/.test(t),
+    "the monitor must expose what it has seen");
+
+  const p = readSrc("js/picker.js");
+  assert.ok(/function liveCategory/.test(p), "the picker must have a live category");
+  assert.ok(/state\.mode !== "input"/.test(p), "you can only map what you can PRESS — inputs only");
+  assert.ok(/if \(live\) base = \[live\]\.concat\(base\)/.test(p), "and it must come FIRST");
+  assert.ok(/stuck\.has\(r\.usage\)/.test(p),
+    "a usage stuck at a constant value must NOT be offered — a combo on it can never fire");
+  assert.ok(/isButton/.test(p), "real buttons should sort ahead of axes");
+});

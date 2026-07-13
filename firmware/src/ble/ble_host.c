@@ -249,12 +249,47 @@ static bool adv_event_contains_hid_service(const uint8_t * packet){
     return ad_data_contains_uuid16(ad_len, ad_data, ORG_BLUETOOTH_SERVICE_HUMAN_INTERFACE_DEVICE);
 }
 
+/* WHY THE LED USED TO BLINK FOR AGES BEFORE CONNECTING.
+   The BTstack example scans FOREVER waiting for an advertisement that carries the HID service
+   UUID. A real BLE remote only puts that UUID (and its name) in the occasional advert -- most
+   of its packets are bare -- and when it is asleep it may never send one. So we sat there
+   skipping the device over and over.
+
+   The fix (from shiomachisoft/picow_ble_usb_hid_bridge, which stays connected):
+     * give scanning a DEADLINE, and when it expires connect straight to the BONDED address.
+       A direct connect wakes the remote; it does not need to advertise at all.
+     * make the connection timeout short (3s, not 10s) so a failed attempt is retried quickly
+       instead of leaving the LED blinking for ten seconds.
+     * ALWAYS remove a timer before re-adding it -- btstack_run_loop_add_timer asserts if the
+       timer is already queued, which is easy to hit when a scan restarts mid-reconnect. */
+#define CONNECTION_TIMEOUT_MS 3000
+#define SCAN_TIMEOUT_MS       5000
+
+static void hog_start_connect(void);
+
+/**
+ * Scanning found nothing in time -> stop guessing and connect to the device we already know.
+ */
+static void hog_scan_timeout(btstack_timer_source_t * ts){
+    UNUSED(ts);
+    if (app_state != W4_HID_DEVICE_FOUND) return;
+    printf("Scan timeout - trying a direct connect to the bonded device...\n");
+    gap_stop_scan();
+    hog_start_connect();
+}
+
 /**
  * Start scanning
  */
 static void hog_start_scan(void){
-    printf("Scanning for LE HID devices...\n");
+    printf("Scanning for LE HID devices (timeout %dms)...\n", SCAN_TIMEOUT_MS);
     app_state = W4_HID_DEVICE_FOUND;
+
+    btstack_run_loop_remove_timer(&connection_timer);   // may still be queued from a reconnect
+    btstack_run_loop_set_timer(&connection_timer, SCAN_TIMEOUT_MS);
+    btstack_run_loop_set_timer_handler(&connection_timer, &hog_scan_timeout);
+    btstack_run_loop_add_timer(&connection_timer);
+
     // Active scanning, 100% (scan interval = scan window) -- also requests
     // scan responses so we see names/UUIDs for the diagnostic log below.
     gap_set_scan_parameters(1,48,48);
@@ -267,7 +302,7 @@ static void hog_start_scan(void){
  */
 static void hog_connection_timeout(btstack_timer_source_t * ts){
     UNUSED(ts);
-    printf("Timeout - abort connection\n");
+    printf("Connection timeout - back to scanning\n");
     gap_connect_cancel();
     hog_start_scan();
 }
@@ -277,10 +312,13 @@ static void hog_connection_timeout(btstack_timer_source_t * ts){
  * Connect to remote device but set timer for timeout
  */
 static void hog_connect(void) {
-    // set timer
-    btstack_run_loop_set_timer(&connection_timer, 10000);
+    printf("Connecting to %s (timeout %dms)...\n", bd_addr_to_str(remote_device.addr), CONNECTION_TIMEOUT_MS);
+
+    btstack_run_loop_remove_timer(&connection_timer);   // the scan timeout may still be armed
+    btstack_run_loop_set_timer(&connection_timer, CONNECTION_TIMEOUT_MS);
     btstack_run_loop_set_timer_handler(&connection_timer, &hog_connection_timeout);
     btstack_run_loop_add_timer(&connection_timer);
+
     app_state = W4_CONNECTED;
     gap_connect(remote_device.addr, remote_device.addr_type);
 }
@@ -446,24 +484,39 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     printf("Found, connect to device with %s address %s ...\n", remote_device.addr_type == 0 ? "public" : "random" , bd_addr_to_str(remote_device.addr));
                     hog_connect();
                     break;
-                case HCI_EVENT_DISCONNECTION_COMPLETE:
-                    if (app_state != READY) break;
+                case HCI_EVENT_DISCONNECTION_COMPLETE: {
+                    // BUG (fixed): this used to `break` unless app_state == READY, which made the
+                    // `default:` arm below dead code. A link that dropped while CONNECTING or
+                    // during HID DISCOVERY was therefore silently ignored -- the firmware sat
+                    // there fast-blinking forever with a stale connection handle. Handle it in
+                    // every state.
+                    uint8_t reason = hci_event_disconnection_complete_get_reason(packet);
+                    // 0x08 = supervision timeout (link lost / out of range / device slept)
+                    // 0x13 = remote terminated   0x16 = local terminated   0x3e = failed to establish
+                    printf("\nDisconnected (reason 0x%02x)", reason);
                     connection_handle = HCI_CON_HANDLE_INVALID;
                     switch (app_state){
                         case READY:
-                            printf("\nDisconnected, try to reconnect...\n");
+                            printf(" - reconnecting...\n");
                             app_state = W4_TIMEOUT_THEN_RECONNECT;
                             break;
                         default:
-                            printf("\nDisconnected, start over...\n");
+                            printf(" while %s - starting over...\n",
+                                   app_state == W4_HID_CLIENT_CONNECTED ? "discovering the HID service"
+                                 : app_state == W4_ENCRYPTED             ? "pairing"
+                                 : app_state == W4_CONNECTED             ? "connecting"
+                                                                         : "scanning");
                             app_state = W4_TIMEOUT_THEN_SCAN;
                             break;
                     }
-                    // set timer
+                    // set timer (remove first: a scan/connection timeout may still be queued,
+                    // and btstack_run_loop_add_timer asserts on an already-queued timer)
+                    btstack_run_loop_remove_timer(&connection_timer);
                     btstack_run_loop_set_timer(&connection_timer, 100);
                     btstack_run_loop_set_timer_handler(&connection_timer, &hog_reconnect_timeout);
                     btstack_run_loop_add_timer(&connection_timer);
                     break;
+                }
                 case HCI_EVENT_META_GAP:
                     // wait for connection complete
                     if (hci_event_gap_meta_get_subevent_code(packet) != GAP_SUBEVENT_LE_CONNECTION_COMPLETE) break;

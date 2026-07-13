@@ -20,6 +20,9 @@
 
 #include <tusb.h>
 
+#include "hardware/structs/ioqspi.h"
+#include "hardware/structs/sio.h"
+#include "hardware/sync.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/time.h"
@@ -88,9 +91,64 @@ uint32_t get_gpio_valid_pins_mask() {
                                       (1 << 23) | (1 << 24) | (1 << 25) | (1 << 29));
 }
 
+/* THE BOOTSEL BUTTON = "PAIR NEW DEVICE".
+ *
+ * The Pico W has exactly one button and no way to trigger a re-pair without a PC. Holding BOOTSEL
+ * only enters the bootloader at RESET; while running it is just a button, and it can be read.
+ *
+ * The trick (from pico-examples): BOOTSEL is wired to the flash chip-select line. Briefly drive
+ * QSPI_SS as a GPIO, read it (LOW = pressed), and put it back. Flash must not be accessed while we
+ * do that, hence __no_inline_not_in_flash_func and interrupts off -- executing from flash mid-read
+ * would hang the chip.
+ *
+ * Hold it for ~1s to clear the bonds and start looking for a new device.
+ */
+#define BOOTSEL_HOLD_MS 1000
+
+static bool __no_inline_not_in_flash_func(bootsel_pressed)() {
+    const uint CS_PIN_INDEX = 1;
+    uint32_t flags = save_and_disable_interrupts();
+
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_LOW << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+    for (volatile int i = 0; i < 1000; ++i) {  // let the pin settle
+    }
+    bool pressed = !(sio_hw->gpio_hi_in & (1u << CS_PIN_INDEX));
+    hw_write_masked(&ioqspi_hw->io[CS_PIN_INDEX].ctrl,
+                    GPIO_OVERRIDE_NORMAL << IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_LSB,
+                    IO_QSPI_GPIO_QSPI_SS_CTRL_OEOVER_BITS);
+
+    restore_interrupts(flags);
+    return pressed;
+}
+
+static void check_pair_button() {
+    static uint64_t held_since = 0;
+    static bool fired = false;
+
+    if (!bootsel_pressed()) {
+        held_since = 0;
+        fired = false;
+        return;
+    }
+    uint64_t now = time_us_64();
+    if (held_since == 0) {
+        held_since = now;
+        return;
+    }
+    if (!fired && (now - held_since >= BOOTSEL_HOLD_MS * 1000ull)) {
+        fired = true;  // once per hold
+        ble_bridge_request(BLE_REQ_PAIR_NEW);
+    }
+}
+
 void read_report(bool* new_report, bool* tick) {
     *tick = get_and_clear_tick_pending();
     reports_received = false;
+
+    // hold BOOTSEL for a second to forget the current remote and pair a new one
+    check_pair_button();
 
     // The remote went away: forget its descriptor, so a different device reconnecting cannot be
     // interpreted with the old one's report layout.

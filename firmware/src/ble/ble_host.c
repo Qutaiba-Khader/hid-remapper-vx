@@ -156,6 +156,8 @@ static btstack_timer_source_t connection_timer;
 // onboard LED status (Adapt E): solid = connected/ready, fast blink =
 // connecting/pairing, slow blink = scanning/idle.
 static void ble_clear_all_bonds(void);
+static void hog_start_scan(void);
+static void hog_start_connect(void);
 
 /* The config tool's "Pair new device" / "Clear bonds" buttons land on CORE 0 as config commands
    12/13. BTstack may only be touched from core 1, so core 0 raises a flag in the bridge and we
@@ -314,8 +316,7 @@ static void ble_clear_all_bonds(void){
     if (btstack_tlv_singleton_impl){
         btstack_tlv_singleton_impl->delete_tag(btstack_tlv_singleton_context, TLV_TAG_HOGD);
     }
-    printf("   %d bond(s) cleared. NOTE: the REMOTE still holds its key -- re-pair it too.
-", deleted);
+    printf("   %d bond(s) cleared. NOTE: the REMOTE still holds its key -- re-pair it too.\n", deleted);
 }
 
 __attribute__((unused))
@@ -364,8 +365,6 @@ static bool adv_event_contains_hid_service(const uint8_t * packet){
    made it work the first time.) */
 #define HID_DISCOVERY_TIMEOUT_MS 6000
 
-static void hog_start_connect(void);
-static void hog_start_scan(void);
 static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type);
 
 /**

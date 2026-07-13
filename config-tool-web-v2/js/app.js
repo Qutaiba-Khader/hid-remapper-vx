@@ -165,15 +165,16 @@ const PROFILE_NAMES = window.HRX_STATE.PROFILES;
 // Where did the config currently in APP come from?
 //
 // This matters because saveToDevice() sends CLEAR_MAPPING / CLEAR_MACROS / CLEAR_EXPRESSIONS /
-// CLEAR_QUIRKS and then writes whatever APP holds. The Macros tab has no editor yet and state.js
-// ships sample expressions, so saving a config that did NOT come from the device can silently
-// erase the device's macros/expressions/quirks.
+// CLEAR_QUIRKS and then writes whatever APP holds. So a config that did NOT come from the device
+// can silently erase the device's macros/expressions/quirks — the page has no macro editor yet,
+// and an imported file may not carry them at all.
 //
-//   "sample"  - the page's built-in demo config (boot state). Never savable.
+//   "empty"   - boot state. The page ships with NO config at all: no mappings, no macros, no
+//               expressions. Nothing on screen is invented.
 //   "device"  - loaded from the connected device. Safe to save.
-//   "json"    - imported / hand-edited / the JSON modal's sample. Savable, but only after the
-//               user confirms, because it may not carry the device's macros or quirks.
-let configSource = "sample";
+//   "json"    - imported or hand-edited. Savable, but only after the user confirms, because it
+//               may not carry the device's macros or quirks.
+let configSource = "empty";
 window.HRX.setConfigSource = (src) => { configSource = src; };
 window.HRX.getConfigSource = () => configSource;
 
@@ -198,10 +199,18 @@ async function handleConn(act) {
       APP.device.firmware = info.firmware;
       if (!APP.device.profile) APP.device.profile = "—";
       APP.connection = "connected";
-      configSource = "sample";
 
-      // Pull the device's real config immediately, so what you see (and what a later Save
-      // writes back) is the device's own state — not this page's sample data.
+      // The page boots empty, so on connect we pull the device's real config straight away —
+      // what you see IS the device. The one exception: if you authored something offline (or
+      // imported a file), we must not silently throw it away, so we keep it and let you decide.
+      const hasLocalWork = configSource !== "device" && APP.mappings.length > 0;
+      if (hasLocalWork) {
+        render();
+        toast("Connected to " + info.name + " — your unsaved config is still here. Click “Load from device” to replace it with the device's.");
+        return;
+      }
+
+      configSource = "empty";
       try {
         const config = await dev.loadFromDevice();
         applyDeviceConfig(config);
@@ -213,12 +222,12 @@ async function handleConn(act) {
         toast("Connected to " + info.name + ", but the load failed: " + String((e && e.message) || e) + " — saving is blocked until a load succeeds");
       }
     } catch (e) {
-      APP.connection = "disconnected"; configSource = "sample"; render();
+      APP.connection = "disconnected"; configSource = "empty"; render();
       toast(String((e && e.message) || e));
     }
   } else if (act === "disconnect") {
     try { await dev.disconnect(); } catch (e) {}
-    APP.connection = "disconnected"; configSource = "sample"; render(); toast("Device disconnected");
+    APP.connection = "disconnected"; render(); toast("Device disconnected");
   } else if (act === "load") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
     try {
@@ -230,18 +239,19 @@ async function handleConn(act) {
     } catch (e) { toast("Load failed: " + String((e && e.message) || e)); }
   } else if (act === "save") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
-    // See the configSource comment above. A save rewrites EVERYTHING on the device, so it must
-    // never happen with the page's own demo data, and must be confirmed for hand-edited/imported
-    // JSON (which may not carry the device's macros or quirks).
-    if (configSource === "sample") {
-      toast("Load from the device first — saving now would erase its macros, expressions and quirks");
+    // A save CLEARS and rewrites everything on the device (mappings, macros, expressions,
+    // quirks). So: never save an empty page over a device, and confirm anything that did not
+    // come from the device itself — it may not carry that device's macros or quirks.
+    if (configSource !== "device" && APP.mappings.length === 0) {
+      toast("Nothing to save — load from the device, or import a config, first");
       return;
     }
-    if (configSource === "json") {
+    if (configSource !== "device") {
       const ok = window.confirm(
-        "This config came from JSON, not from the device.\n\n" +
-        "Saving replaces the device's mappings, macros, expressions and quirks with what is in " +
-        "this page. Anything the JSON does not carry will be erased.\n\nSave anyway?");
+        "This config did not come from the device.\n\n" +
+        "Saving REPLACES the device's mappings, macros, expressions and quirks with what is on " +
+        "this page. Anything this page does not carry will be erased.\n\n" +
+        "Tip: click “Load from device” first if you only meant to change a few mappings.\n\nSave anyway?");
       if (!ok) { toast("Save cancelled"); return; }
     }
     try {

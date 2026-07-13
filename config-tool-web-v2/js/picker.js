@@ -47,14 +47,10 @@
           <button class="btn-hx btn-ghost btn-sm picker-close" id="pickerClose">${ICON.x}<span>Close</span></button>
         </div>
         <div class="picker-controls">
-          <div class="field">
-            <label>Port</label>
-            <select class="select-hx"><option>0 — Any</option><option>1</option><option>2</option><option>3</option></select>
-          </div>
-          <div class="field">
-            <label>Input labels</label>
-            <select class="select-hx"><option>Default</option><option>Android TV Remote</option><option>Generic Keyboard</option></select>
-          </div>
+          <!-- The mock had "Port" and "Input labels" dropdowns here. They were never wired to
+               anything — they looked functional but changed nothing — so they are gone rather
+               than lying to the user. (Both map to real device fields, source_port and
+               input_labels, which round-trip untouched; they just have no UI yet.) -->
           <div class="field" style="flex:1">
             <label>Search</label>
             <div class="search-wrap">

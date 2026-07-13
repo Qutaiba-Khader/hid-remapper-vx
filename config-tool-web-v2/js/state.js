@@ -60,24 +60,25 @@ function mk(inputs, output, opts = {}) {
   };
 }
 
+// The app boots EMPTY. There is no demo/sample config anywhere: every mapping, macro,
+// expression and quirk you see has come either from the connected device (Open device /
+// Load) or from a config file you imported. Showing invented data would be a lie, and —
+// because saveToDevice() clears and rewrites everything — a dangerous one.
 const APP = {
   connection: "disconnected", // disconnected | connecting | connected
   device: {
-    name: "HID Remapper VX",
-    vidpid: "CAFE:BABE",
-    firmware: "v15.2.0",
-    profile: "Android TV",
+    name: "",
+    vidpid: "—",
+    firmware: "—",
+    profile: "—",
   },
   activeTab: "mappings",
-  config: { title: "Living Room — Android TV" },
+  config: { title: "" },
   groupDisabled: false,
   exprActive: 0, // which of the 8 expression slots is selected
-  expressions: [
-    "0x00010030 input_state -128 add 0.05 mul", // re-center Left Stick X + scale to cursor speed
-    "0x00010033 input_state -100 100 clamp",     // clamp Right Stick X to ±100
-    "0x00010030 input_state -128 add dup abs 10 gt mul 0.025 mul", // dead-zone (stack trick)
-    "", "", "", "", "",
-  ],
+  expressions: ["", "", "", "", "", "", "", ""],
+  macros: Array.from({ length: 32 }, () => []),
+  quirks: [],
   // Defaults below are the FIRMWARE's own (firmware/src/globals.cc) — a fresh device
   // behaves exactly like this. Do not "tidy" them; they are load-bearing.
   settings: {
@@ -93,22 +94,7 @@ const APP = {
     gpioOutputMode: 0,       // 0 = push-pull, 1 = open-drain
     ignoreAuthDevInputs: false,
   },
-  mappings: [
-    mk("0x00070052", "0x00070052"), // Cursor Up -> Arrow Up
-    mk("0x00070051", "0x00070051"),
-    mk("0x00070050", "0x00070050"),
-    mk("0x0007004f", "0x0007004f"),
-    mk("0x000c0041", "0x00070028"), // Menu Select -> Return
-    mk("0x000c00e9", "0x000c00e9"), // Volume Up
-    mk("0x000c00ea", "0x000c00ea"), // Volume Down
-    // Showcase combo: Volume Up + Volume Down -> Mute
-    mk(["0x000c00e9", "0x000c00ea"], "0x000c00e2"),
-    mk("0x000c0224", "0x00070029", { enabled: false }), // AC Back -> Escape (disabled demo)
-    mk("0x000c00cd", "0x000c00cd", { tap: true }), // Play/Pause
-    // RGB LED per-layer status light: nothing -> LED color, one per layer
-    mk("0x00000000", "0xfffa0006", { layers: [true, false, false, false] }), // Layer 0 -> LED Green
-    mk("0x00000000", "0xfffa000a", { layers: [false, true, false, false] }), // Layer 1 -> LED Blue
-  ],
+  mappings: [],
 };
 
 window.HRX_STATE = { APP, ROW_TINTS, tintById, mk, uid, PROFILES, NLAYERS, normLayers };

@@ -17,29 +17,6 @@
     wand: svg('<path d="m15 4 1.5 1.5M3 21l9-9M14 5l5 5M18 2l1 1M22 6l1 1M19 9l1 1"/>'),
   };
 
-  /* a faithful sample in the device format */
-  const SAMPLE = {
-    version: 18,
-    unmapped_passthrough_layers: [0, 1, 2, 3, 4, 5, 6, 7],
-    partial_scroll_timeout: 1000000,
-    tap_hold_threshold: 200000,
-    gpio_debounce_time_ms: 5,
-    interval_override: 1,
-    our_descriptor_number: 0,
-    ignore_auth_dev_inputs: false,
-    macro_entry_duration: 1,
-    gpio_output_mode: 0,
-    input_labels: 0,
-    normalize_gamepad_inputs: true,
-    mappings: [
-      { target_usage: "0x000c0224", source_usage: "0x000c00e2", scaling: 1000, layers: [0], sticky: false, tap: false, hold: false, source_port: 0, target_port: 0 },
-      { target_usage: "0x00070073", source_usage: "0x000c00cf", scaling: 1000, layers: [0], sticky: false, tap: false, hold: false, source_port: 0, target_port: 0 },
-    ],
-    macros: Array.from({ length: 32 }, () => []),
-    expressions: ["", "", "", "", "", "", "", ""],
-    quirks: [],
-  };
-
   /* ---- APP <-> device JSON — delegated to translate.js (single source of truth).
      configToJson exports the FULL config: combos are real mappings on usage page
      0xFFFB, plus the additive disabled_rows[] so switched-off rows survive a
@@ -83,7 +60,6 @@
           <div class="cfg-error" id="cfgError"></div>
         </div>
         <div class="modal-foot">
-          <button class="btn-hx btn-sm" id="cfgSample">${IC.doc}<span>Load sample</span></button>
           <button class="btn-hx btn-sm btn-ghost" id="cfgFormat">${IC.wand}<span>Format</span></button>
           <div class="modal-spacer"></div>
           <button class="btn-hx" id="cfgCancel">Cancel</button>
@@ -103,7 +79,6 @@
     scrim.querySelector("#cfgClose").addEventListener("click", requestClose);
     scrim.querySelector("#cfgCancel").addEventListener("click", requestClose);
     scrim.querySelector("#cfgFormat").addEventListener("click", format);
-    scrim.querySelector("#cfgSample").addEventListener("click", loadSample);
     scrim.querySelector("#cfgApply").addEventListener("click", apply);
 
     mState.keyHandler = (e) => { if (e.key === "Escape") requestClose(); };
@@ -148,10 +123,6 @@
     const res = parseCurrent();
     if (!res.ok) { validate(); return; }
     mState.ta.value = JSON.stringify(res.obj, null, 4);
-    validate();
-  }
-  function loadSample() {
-    mState.ta.value = JSON.stringify(SAMPLE, null, 4);
     validate();
   }
   function apply() {

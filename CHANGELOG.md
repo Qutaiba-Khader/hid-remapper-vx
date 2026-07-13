@@ -27,8 +27,16 @@
 - **Macro editor** — build a macro as a sequence of steps (several keys per step are pressed
   together; an empty step is a pause), copy a macro to another slot, and fire it by mapping a key's
   output to **Macro N**.
-- **Still missing vs the original tool:** only the **quirk editor** (view-only in v2 — the data
-  round-trips untouched; edit it via the original tool or Settings → Edit config JSON).
+- **Quirk editor** — add/edit/delete quirks (VID, PID, interface, report id, usage, bit position,
+  size, relative, signed) for devices whose HID descriptor is wrong.
+- **The picker now offers the usages your device actually reports** (v1 asks the device; v2 never
+  did, so anything outside the static catalog could only be typed as raw hex).
+- **The expression editor knows all 55 firmware ops** — it previously knew 46, and any expression
+  using one of the other 9 was flagged "Unknown operation" with Apply disabled, so an expression
+  already on the device could not be edited.
+- **Layer safety**: a layer key is forced onto the layer it activates (non-sticky) or off it
+  (sticky), exactly as the firmware does — otherwise you can build a layer you cannot leave.
+- **Feature parity with the original tool is now complete.**
 
 ## Native combos — r2026-07-13
 

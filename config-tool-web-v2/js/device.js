@@ -28,6 +28,10 @@
   const NLAYERS = 8, NMACROS = 32, NEXPRESSIONS = 8, MACRO_ITEMS_IN_PACKET = 6;
 
   const STICKY_FLAG = 1 << 0, TAP_FLAG = 1 << 1, HOLD_FLAG = 1 << 2;
+  // bit 3: on a mapping whose TARGET is on the combo page (0xFFFB), the source key is
+  // "consumed" while the combo is held — it stops firing its own mappings. See
+  // docs/superpowers/specs/2026-07-13-firmware-combos-design.md. Bits 4-7 are free.
+  const COMBO_CONSUME_FLAG = 1 << 3;
   const IGNORE_AUTH_DEV_INPUTS_FLAG = 1 << 4, GPIO_OUTPUT_MODE_FLAG = 1 << 5, NORMALIZE_GAMEPAD_INPUTS_FLAG = 1 << 6;
   const HUB_PORT_NONE = 255;
   const QUIRK_FLAG_RELATIVE_MASK = 0b10000000, QUIRK_FLAG_SIGNED_MASK = 0b01000000, QUIRK_SIZE_MASK = 0b00111111;
@@ -260,6 +264,7 @@
           target_usage: hex8(target), source_usage: hex8(source), scaling,
           layers: maskToLayerList(layerMask),
           sticky: !!(mapFlags & STICKY_FLAG), tap: !!(mapFlags & TAP_FLAG), hold: !!(mapFlags & HOLD_FLAG),
+          combo_consume: !!(mapFlags & COMBO_CONSUME_FLAG),
           source_port: hubPorts & 0x0f, target_port: (hubPorts >> 4) & 0x0f,
         });
       }
@@ -350,7 +355,8 @@
           [U32, parseInt(m.source_usage, 16)],
           [I32, m.scaling],
           [U8, layerListToMask(m.layers)],
-          [U8, (m.sticky ? STICKY_FLAG : 0) | (m.tap ? TAP_FLAG : 0) | (m.hold ? HOLD_FLAG : 0)],
+          [U8, (m.sticky ? STICKY_FLAG : 0) | (m.tap ? TAP_FLAG : 0) | (m.hold ? HOLD_FLAG : 0) |
+               (m.combo_consume ? COMBO_CONSUME_FLAG : 0)],
           [U8, ((m.target_port & 0x0f) << 4) | (m.source_port & 0x0f)],
         ]);
       }
@@ -427,6 +433,7 @@
     flashFirmware, flashBSide, pairNewDevice, clearBonds,
     // constants
     CONFIG_VERSION, HUB_PORT_NONE, PERSIST_CONFIG_SUCCESS, PERSIST_CONFIG_CONFIG_TOO_BIG,
+    STICKY_FLAG, TAP_FLAG, HOLD_FLAG, COMBO_CONSUME_FLAG,
     // pure helpers (tested in Node)
     buildCommand, parseFields, addCrc, checkCrc,
     exprToElems, exprElemsToText, maskToLayerList, layerListToMask,

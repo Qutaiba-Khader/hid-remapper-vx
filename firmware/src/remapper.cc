@@ -98,7 +98,12 @@ uint8_t layer_state_mask = 1;
 #define NCOMBOS 16
 std::vector<combo_t> combos;               // index = combo id - 1
 uint8_t combo_consumed[MAX_INPUT_STATES];  // per-frame: this input slot is owned by an active combo
-uint8_t combo_deferred[MAX_INPUT_STATES];  // sticky: this key's press was held back and never sent
+uint8_t combo_deferred[MAX_INPUT_STATES];       // sticky: this key's press was held back and never sent
+uint8_t combo_fired[MAX_INPUT_STATES];          // that held-back press was spent ON a combo
+uint64_t combo_replay_until[MAX_INPUT_STATES];  // us: replaying a press we owe the host as a tap
+// How long a swallowed press is replayed for. Long enough that the host reliably sees a press
+// AND a release (it polls every 1-8ms), short enough to feel instant.
+#define COMBO_REPLAY_US 15000
 #endif
 
 std::vector<int32_t*> relative_usages;  // input_state pointers
@@ -440,6 +445,8 @@ void set_mapping_from_config() {
     combos.resize(NCOMBOS);
     memset(combo_consumed, 0, sizeof(combo_consumed));
     memset(combo_deferred, 0, sizeof(combo_deferred));
+    memset(combo_fired, 0, sizeof(combo_fired));
+    memset(combo_replay_until, 0, sizeof(combo_replay_until));
 #endif
 #ifdef RGB_LED_ENABLED
     active_led_targets.clear();
@@ -1190,6 +1197,28 @@ int32_t eval_expr(uint8_t expr, uint64_t now, bool auto_repeat) {
 static void evaluate_combos(uint64_t now) {
     memset(combo_consumed, 0, sizeof(combo_consumed));
 
+    // A REPLAYED TAP. If we held a key back and the user let go before the window expired, the
+    // combo never happened and we still OWE them that press. It cannot be sent retroactively,
+    // so send it NOW as a real press-and-release.
+    //
+    // Without this, every ordinary click of a consuming member is SWALLOWED: a mouse click is
+    // 30-50ms and the window is 50ms, so you release before the deferral ever gives the key
+    // back. The symptom on hardware is "the button only works if I hold it down".
+    for (auto const& combo : combos) {
+        for (auto const& member : combo.members) {
+            size_t slot = member.input_state - input_state;
+            if (combo_replay_until[slot] == 0) {
+                continue;
+            }
+            if (now >= combo_replay_until[slot]) {
+                combo_replay_until[slot] = 0;
+                *member.input_state = 0;  // end of the tap: release
+            } else {
+                *member.input_state = 1;  // hold the replayed press
+            }
+        }
+    }
+
     for (size_t i = 0; i < combos.size(); i++) {
         combo_t& combo = combos[i];
         if (combo.members.empty() || (combo.out_state == NULL)) {
@@ -1201,6 +1230,11 @@ static void evaluate_combos(uint64_t now) {
         uint64_t last_rise = 0;
 
         for (auto& member : combo.members) {
+            // a key we are replaying is not physically down -- it must not drive the combo
+            if (combo_replay_until[member.input_state - input_state] != 0) {
+                all_down = false;
+                continue;
+            }
             // remember when this member was last pressed
             if ((*member.input_state != 0) && (*(member.input_state + PREV_STATE_OFFSET) == 0)) {
                 member.rise_at = now;
@@ -1256,6 +1290,9 @@ static void evaluate_combos(uint64_t now) {
                 for (auto const& member : combo.members) {
                     if (member.consume) {
                         combo_consumed[member.input_state - input_state] = 1;
+                        // the press was SPENT on the combo -- we no longer owe a click for it,
+                        // so releasing must not replay a stray tap
+                        combo_fired[member.input_state - input_state] = 1;
                     }
                 }
             }
@@ -1271,23 +1308,46 @@ static void evaluate_combos(uint64_t now) {
         *combo.out_state = new_out;
     }
 
-    // Deliver a press we held back but never actually sent. A member whose press was deferred
-    // (so the host has not seen it) and which is no longer consumed means the combo did not
-    // complete: the key must now behave as if it had just been pressed. Clearing prev_input_state
-    // re-creates the rising edge the deferral swallowed, so macros, tap/hold and sticky bound to
-    // that key still fire -- just window_us late.
+    // A key being replayed is never suppressed. (A PENDING combo consumes all of its consuming
+    // members, including ones that are up -- that would eat the replay we are in the middle of.)
     for (auto const& combo : combos) {
         for (auto const& member : combo.members) {
             size_t slot = member.input_state - input_state;
-            if (*member.input_state == 0) {
-                combo_deferred[slot] = 0;  // released; nothing outstanding
-            } else if (combo_consumed[slot]) {
-                if (*(member.input_state + PREV_STATE_OFFSET) == 0) {
-                    combo_deferred[slot] = 1;  // pressed while suppressed: the host never saw it
+            if (combo_replay_until[slot] != 0) {
+                combo_consumed[slot] = 0;
+            }
+        }
+    }
+
+    // Deferral bookkeeping: decide what we still owe the host for each member.
+    for (auto const& combo : combos) {
+        for (auto const& member : combo.members) {
+            size_t slot = member.input_state - input_state;
+            if (combo_replay_until[slot] != 0) {
+                continue;
+            }
+
+            if (*member.input_state != 0) {
+                if (combo_consumed[slot]) {
+                    // held back: remember that the host has never seen this press
+                    if (*(member.input_state + PREV_STATE_OFFSET) == 0) {
+                        combo_deferred[slot] = 1;
+                    }
+                } else if (combo_deferred[slot]) {
+                    // still held, but the combo failed -- deliver it late, with a real rising
+                    // edge, so macros / tap-hold / sticky bound to the key still fire
+                    combo_deferred[slot] = 0;
+                    *(member.input_state + PREV_STATE_OFFSET) = 0;
                 }
-            } else if (combo_deferred[slot]) {
+            } else {
+                // Released. If the press is still owed AND no combo used it, replay it as a tap.
+                if (combo_deferred[slot] && !combo_fired[slot]) {
+                    combo_replay_until[slot] = now + COMBO_REPLAY_US;
+                    *member.input_state = 1;                        // start the tap now...
+                    *(member.input_state + PREV_STATE_OFFSET) = 0;  // ...with a rising edge
+                }
                 combo_deferred[slot] = 0;
-                *(member.input_state + PREV_STATE_OFFSET) = 0;  // re-arm the edge
+                combo_fired[slot] = 0;
             }
         }
     }

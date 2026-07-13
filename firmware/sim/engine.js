@@ -23,6 +23,9 @@ const PREV = MAX_INPUT_STATES; // input_state[i + PREV] stands in for prev_input
 const UINT64_MAX = Number.MAX_SAFE_INTEGER;
 const COMBO_PAGE = 0xfffb0000;
 const NCOMBOS = 16;
+// How long a swallowed press is replayed for. Long enough that the host reliably sees a
+// press AND a release (it polls at 1-8ms); short enough to feel instant.
+const COMBO_REPLAY_US = 15000;
 
 const onPage = (usage, page) => ((usage & 0xffff0000) >>> 0) === page;
 
@@ -131,7 +134,9 @@ function makeComboEngine() {
 function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
     const input_state = new Int32Array(MAX_INPUT_STATES * 2);
     const combo_consumed = new Uint8Array(MAX_INPUT_STATES);
-    const combo_deferred = new Uint8Array(MAX_INPUT_STATES);
+    const combo_deferred = new Uint8Array(MAX_INPUT_STATES);   // press held back, host never saw it
+    const combo_fired = new Uint8Array(MAX_INPUT_STATES);      // that press was spent on a combo
+    const combo_replay_until = new Float64Array(MAX_INPUT_STATES); // us; replaying an owed tap
     let layer_state_mask = 1;
     let used = 0;
     const slotOf = new Map();
@@ -206,12 +211,35 @@ function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
 
     function evaluate_combos(now) {
         combo_consumed.fill(0);
+
+        /* 1. A REPLAYED TAP. If we held a key back and you let go before the window expired,
+              the combo never happened and we still OWE you that press. We cannot send it
+              retroactively, so we send it NOW as a real press-and-release. Without this, every
+              ordinary click of a combo member is swallowed: a click is 30-50ms, the window is
+              50ms, so you never hold long enough for the deferral to give the key back. The
+              symptom is "the button only works if I hold it". */
+        for (const combo of combos) {
+            for (const mem of combo.members) {
+                const slot = mem.input_state;
+                if (!combo_replay_until[slot]) continue;
+                if (now >= combo_replay_until[slot]) {
+                    combo_replay_until[slot] = 0;
+                    input_state[slot] = 0; // end of the tap: release
+                } else {
+                    input_state[slot] = 1; // hold the replayed press
+                }
+            }
+        }
+        const replaying = (slot) => combo_replay_until[slot] !== 0;
+
         for (let i = 0; i < combos.length; i++) {
             const combo = combos[i];
             if (!combo.members.length || combo.out === null) continue;
 
             let all_down = true, first = UINT64_MAX, last = 0;
             for (const mem of combo.members) {
+                // a key we are replaying is NOT physically down — it must not drive the combo
+                if (replaying(mem.input_state)) { all_down = false; continue; }
                 if (input_state[mem.input_state] !== 0 && input_state[mem.input_state + PREV] === 0) mem.rise_at = now;
                 if (input_state[mem.input_state] === 0 || !(layer_state_mask & mem.layer_mask)) { all_down = false; continue; }
                 if (mem.rise_at < first) first = mem.rise_at;
@@ -229,24 +257,53 @@ function makeEngine({ mappings, passthroughMask = 0b11111111, ourUsages }) {
             } else {
                 if (!combo.latched) combo.latched = combo.window_us === 0 || last - first <= combo.window_us;
                 new_out = combo.latched ? 1 : 0;
-                if (combo.latched) for (const mem of combo.members) if (mem.consume) combo_consumed[mem.input_state] = 1;
+                if (combo.latched) {
+                    for (const mem of combo.members) {
+                        if (mem.consume) {
+                            combo_consumed[mem.input_state] = 1;
+                            // the press was spent ON THE COMBO — we no longer owe a click
+                            combo_fired[mem.input_state] = 1;
+                        }
+                    }
+                }
             }
 
             if (input_state[combo.out] !== new_out) monitored.push({ combo: i + 1, value: new_out });
             input_state[combo.out] = new_out;
         }
 
-        // deliver a held-back press the host never saw, with a real rising edge
+        // a key being replayed is never suppressed (a pending combo consumes ALL its members,
+        // even the ones that are up — that would eat the replay)
+        for (const combo of combos) {
+            for (const mem of combo.members) {
+                if (replaying(mem.input_state)) combo_consumed[mem.input_state] = 0;
+            }
+        }
+
+        /* 2. deferral bookkeeping */
         for (const combo of combos) {
             for (const mem of combo.members) {
                 const slot = mem.input_state;
-                if (input_state[slot] === 0) {
+                if (replaying(slot)) continue;
+
+                if (input_state[slot] !== 0) {
+                    if (combo_consumed[slot]) {
+                        // held back; remember the host has never seen this press
+                        if (input_state[slot + PREV] === 0) combo_deferred[slot] = 1;
+                    } else if (combo_deferred[slot]) {
+                        // still held, but the combo failed -> deliver it late, with a real edge
+                        combo_deferred[slot] = 0;
+                        input_state[slot + PREV] = 0;
+                    }
+                } else {
+                    // released. If we still owe the press AND no combo used it, replay it as a tap.
+                    if (combo_deferred[slot] && !combo_fired[slot]) {
+                        combo_replay_until[slot] = now + COMBO_REPLAY_US;
+                        input_state[slot] = 1;        // start the tap now...
+                        input_state[slot + PREV] = 0; // ...with a rising edge
+                    }
                     combo_deferred[slot] = 0;
-                } else if (combo_consumed[slot]) {
-                    if (input_state[slot + PREV] === 0) combo_deferred[slot] = 1;
-                } else if (combo_deferred[slot]) {
-                    combo_deferred[slot] = 0;
-                    input_state[slot + PREV] = 0; // re-arm the edge the deferral swallowed
+                    combo_fired[slot] = 0;
                 }
             }
         }

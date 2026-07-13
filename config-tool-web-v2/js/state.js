@@ -56,7 +56,7 @@ function mk(inputs, output, opts = {}) {
     // comboWindow ms (0 = no timing check); comboConsume stops the member keys from
     // firing their own mappings while the combo is held.
     comboWindow: opts.comboWindow == null ? 50 : opts.comboWindow,
-    comboConsume: opts.comboConsume !== false,
+    comboConsume: opts.comboConsume === true,
   };
 }
 

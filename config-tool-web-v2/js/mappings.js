@@ -41,7 +41,7 @@
   /* ---------- combo-only row controls: timing window + consume ---------- */
   function comboOptsHtml(m) {
     const win = m.comboWindow == null ? 50 : m.comboWindow;
-    const consume = m.comboConsume !== false;
+    const consume = m.comboConsume === true;
     // the Settings master switch means "don't send combos to the device" — say so on the row
     // rather than dropping it silently at save time
     const off = APP.settings && APP.settings.combosEnabled === false;
@@ -456,7 +456,7 @@
     $$('[data-cconsume]', root).forEach((el) => el.addEventListener("click", () => {
       const m = findMap(el.dataset.mid);
       if (!m) return;
-      m.comboConsume = m.comboConsume === false;
+      m.comboConsume = !(m.comboConsume === true);
       refresh();
     }));
 

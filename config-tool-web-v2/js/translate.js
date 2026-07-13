@@ -49,7 +49,7 @@
     inputLabels: 0,
     combosEnabled: true,
     comboWindow: DEFAULT_COMBO_WINDOW_MS,
-    comboConsume: true,
+    comboConsume: false,  // OFF by default — see mappings.js
   };
 
   // cosmetic tint id <-> hex (row background tint only; not a device field per se, stored as config.color)
@@ -167,7 +167,7 @@
       source_port: cm.source_port || 0,
       target_port: cm.target_port || 0,
       comboWindow: DEFAULT_COMBO_WINDOW_MS,
-      comboConsume: true,
+      comboConsume: false,
     };
   }
 
@@ -178,7 +178,7 @@
     const layers = boolLayersToIndices(m.layers);
     const raw = m.comboWindow == null ? DEFAULT_COMBO_WINDOW_MS : m.comboWindow;
     const windowMs = Math.max(0, Math.min(5000, Math.round(raw) || 0));
-    const consume = m.comboConsume !== false;
+    const consume = m.comboConsume === true;
     const target = comboUsage(id);
 
     const members = m.inputs.map((code) => ({

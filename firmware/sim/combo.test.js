@@ -503,3 +503,92 @@ test('NCOMBOS agrees between the firmware and the simulation', () => {
     assert.ok(m, 'NCOMBOS must be defined');
     assert.strictEqual(Number(m[1]), require('./engine.js').NCOMBOS);
 });
+
+/* --- the swallowed click (firmware bug #13): "the button only works if I hold it" --- */
+
+test('an ORDINARY CLICK of a consuming member is never swallowed, at any speed', () => {
+    // THE BUG the user hit on real hardware. The deferral holds a member back for the window
+    // (50ms). A real mouse click is only 30-50ms — so you release BEFORE the window expires,
+    // and the held-back press was simply dropped. Every normal click vanished; only a click
+    // held LONGER than the window survived. Hence "they need hold to work".
+    for (const holdMs of [5, 15, 25, 40, 49, 60, 120, 500]) {
+        const e = withCombo(true);
+        const seen = new Set();
+        let t = 0;
+        e.press(VOLUP);
+        for (; t < holdMs; t++) e.frame(t * 1000).forEach((u) => seen.add(u));
+        e.release(VOLUP);
+        for (; t < holdMs + 200; t++) e.frame(t * 1000).forEach((u) => seen.add(u));
+        assert.ok(seen.has(VOLUP), `a ${holdMs}ms click must reach the host, got ` + show(seen));
+        assert.ok(!seen.has(MUTE), `a ${holdMs}ms click must NOT fire the combo`);
+    }
+});
+
+test('the replayed click is a real press AND release, not a stuck key', () => {
+    const e = withCombo(true);
+    e.press(VOLUP);
+    for (let t = 0; t < 20; t++) e.frame(t * 1000);
+    e.release(VOLUP);
+    // the tap is replayed...
+    let downFrames = 0;
+    for (let t = 20; t < 40; t++) if (e.frame(t * 1000).has(VOLUP)) downFrames++;
+    assert.ok(downFrames > 0, 'the owed press must actually be sent');
+    // ...and then it must let go
+    for (let t = 40; t < 120; t++) {
+        assert.ok(!e.frame(t * 1000).has(VOLUP), 'the replayed key must release — a stuck button is worse than a lost one');
+    }
+});
+
+test('a replayed click carries a rising EDGE, so a macro on that key still fires', () => {
+    const e = withCombo(true);
+    e.press(VOLUP);
+    for (let t = 0; t < 20; t++) e.frame(t * 1000);
+    e.release(VOLUP);
+    let sawEdge = false;
+    for (let t = 20; t < 45; t++) { e.frame(t * 1000); if (e.firedEdge(VOLUP)) sawEdge = true; }
+    assert.ok(sawEdge, 'without an edge, macros / tap-hold / sticky bound to the key never fire');
+});
+
+test('when the combo DOES fire, no click is replayed afterwards', () => {
+    // the press was spent on the combo — the user must not get a stray click on release
+    const e = withCombo(true);
+    e.press(VOLUP); e.press(VOLDN);
+    assert.deepStrictEqual([...e.frame(1_000_000)], [MUTE]);
+    e.release(VOLUP); e.release(VOLDN);
+    for (let t = 1; t < 100; t++) {
+        const out = e.frame(1_000_000 + t * 1000);
+        assert.strictEqual(out.size, 0, 'nothing may be replayed after a successful combo: ' + show(out));
+    }
+});
+
+test('a replayed key cannot re-trigger the combo by itself', () => {
+    const e = withCombo(true);
+    e.press(VOLUP);
+    for (let t = 0; t < 20; t++) e.frame(t * 1000);
+    e.release(VOLUP);
+    e.press(VOLDN); // the OTHER key goes down while Vol+ is being replayed
+    for (let t = 20; t < 60; t++) {
+        const out = e.frame(t * 1000);
+        assert.ok(!out.has(MUTE), 'a replayed (not physically held) key must not satisfy the AND');
+    }
+});
+
+test('the swallowed-click replay exists in the firmware (bug #13 must stay fixed)', () => {
+    assert.match(CC, /combo_replay_until\[slot\] = now \+ COMBO_REPLAY_US;/,
+        'a press held back and then released before the window expired must be REPLAYED as a ' +
+        'tap. Without this every ordinary click of a consuming member is swallowed — a click ' +
+        'is 30-50ms and the window is 50ms, so you never hold long enough to get the key back. ' +
+        'The hardware symptom is "the button only works if I hold it".');
+    assert.match(CC, /combo_fired\[member\.input_state - input_state\] = 1;/,
+        'a press SPENT on a combo must not also be replayed as a stray click');
+    assert.match(CC, /if \(combo_replay_until\[member\.input_state - input_state\] != 0\) \{\s*\n\s*all_down = false;/,
+        'a key being replayed is not physically down — it must not satisfy the combo AND');
+    assert.match(CC, /#define COMBO_REPLAY_US \d+/);
+});
+
+test('web: Consume defaults to OFF (it is the only setting that adds latency)', () => {
+    const st = fs.readFileSync(path.join(__dirname, '..', '..', 'config-tool-web-v2', 'js', 'state.js'), 'utf8');
+    assert.match(st, /comboConsume: opts\.comboConsume === true/,
+        'Consume must be opt-in: it necessarily delays the member keys by the window, because ' +
+        'it has to wait and see whether the other key is coming');
+});

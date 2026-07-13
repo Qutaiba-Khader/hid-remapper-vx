@@ -50,6 +50,10 @@ test("no source file carries a hardcoded demo config", () => {
     "v15.2.0",           // fake firmware version
     "MACRO_PREVIEW",     // the fake macro list
     "MON_SEED",          // the fake monitor feed
+    "const EXAMPLES",    // Quick Start's fake "example configs" (added BLANK mappings)
+    "const SHORTCUTS",   // Quick Start's fake shortcut grid (always added nothing->Enter)
+    "const TEMPLATES",   // the expression editor's canned recipe gallery
+    "__bundler_thumbnail",
   ];
   for (const f of fs.readdirSync(path.join(__dirname, "..", "js"))) {
     if (!f.endsWith(".js")) continue;
@@ -58,6 +62,31 @@ test("no source file carries a hardcoded demo config", () => {
       assert.ok(!src.includes(ghost), `js/${f} still contains the mock placeholder "${ghost}"`);
     }
   }
+});
+
+test("every Quick Start preset creates REAL mappings (no blank rows, no fake counts)", () => {
+  const src = JS("quickstart.js");
+  // the fake examples pushed mk("0x00000000","0x00000000") N times while claiming a real config
+  assert.ok(!/mk\("0x00000000",\s*"0x00000000"\)/.test(src),
+    "Quick Start must never add blank placeholder mappings");
+  assert.ok(!src.includes("data-ex"), "the fake 'example configs' gallery is gone");
+  assert.ok(!src.includes("data-shortcut"), "the fake shortcut grid is gone");
+
+  // every preset must map a real source usage to a real target usage
+  const adds = [...src.matchAll(/mk\((\[[^\]]+\]|"0x[0-9a-f]{8}"),\s*"(0x[0-9a-f]{8})"/g)];
+  assert.ok(adds.length >= 4, "presets should still exist");
+  for (const [, from, to] of adds) {
+    assert.ok(!/0x00000000/.test(from), "a preset's INPUT must be a real usage, not 0x00000000");
+    assert.notStrictEqual(to, "0x00000000", "a preset's OUTPUT must be a real usage");
+  }
+});
+
+test("the expression editor picks a real key instead of injecting a hardcoded usage", () => {
+  const src = JS("expressions.js");
+  // the mock's palette injected these two codes and left them there
+  assert.ok(!/ins:\s*\["0x00010030"/.test(src), "the palette must not inject a hardcoded Mouse X");
+  assert.ok(!/ins:\s*\["0x00090001"/.test(src), "the palette must not inject a hardcoded Button 1");
+  assert.ok(src.includes("window.openPicker"), "the palette must open the real key picker");
 });
 
 test("an empty boot config produces an empty device payload (nothing invented on save)", () => {

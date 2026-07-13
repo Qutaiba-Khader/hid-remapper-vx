@@ -210,72 +210,11 @@
   const mkOp = (name, args) => ({ t: "op", name, args });
   const mkInput = (usage, fetch) => mkOp(fetch || "input_state", [mkUsage(usage)]);
 
-  /* ---- templates (Option D + snippet menus) ---------------- */
-  // build() returns a raw RPN string. Many use stack tricks on purpose.
-  const TEMPLATES = [
-    {
-      id: "scale", name: "Scale / sensitivity", group: "Cursor",
-      desc: "Multiply an axis by a sensitivity factor.",
-      params: [
-        { key: "usage", label: "Input axis", type: "input", default: "0x00010030" },
-        { key: "scale", label: "Sensitivity", type: "number", default: "0.05", step: "0.01" },
-      ],
-      build: (p) => `${p.usage} input_state ${p.scale} mul`,
-    },
-    {
-      id: "deadzone", name: "Stick dead-zone", group: "Cursor",
-      desc: "Re-center a stick, ignore small drift, then scale to cursor speed.",
-      params: [
-        { key: "usage", label: "Input axis", type: "input", default: "0x00010030" },
-        { key: "center", label: "Neutral value", type: "number", default: "128" },
-        { key: "dz", label: "Dead-zone", type: "number", default: "10" },
-        { key: "scale", label: "Sensitivity", type: "number", default: "0.025", step: "0.005" },
-      ],
-      build: (p) => `${p.usage} input_state -${p.center} add dup abs ${p.dz} gt mul ${p.scale} mul`,
-    },
-    {
-      id: "clamp", name: "Clamp to range", group: "Cursor",
-      desc: "Keep an axis value between a minimum and maximum.",
-      params: [
-        { key: "usage", label: "Input axis", type: "input", default: "0x00010030" },
-        { key: "min", label: "Minimum", type: "number", default: "-100" },
-        { key: "max", label: "Maximum", type: "number", default: "100" },
-      ],
-      build: (p) => `${p.usage} input_state ${p.min} ${p.max} clamp`,
-    },
-    {
-      id: "turbo", name: "Turbo / auto-fire", group: "Buttons",
-      desc: "Rapidly press a button while it is held down.",
-      params: [
-        { key: "usage", label: "Button", type: "input", default: "0x00090001" },
-        { key: "period", label: "Period (ms)", type: "number", default: "200" },
-      ],
-      build: (p) => `time ${p.period} mod ${Math.round((+p.period || 200) / 2)} gt ${p.usage} input_state_binary mul`,
-    },
-    {
-      id: "layer", name: "Layer gate", group: "Buttons",
-      desc: "Only pass a button through when a given layer is active.",
-      params: [
-        { key: "usage", label: "Button", type: "input", default: "0x00090001" },
-        { key: "layer", label: "Layer #", type: "number", default: "1" },
-      ],
-      build: (p) => {
-        const mask = "0x" + (1 << (+p.layer || 0)).toString(16).padStart(2, "0");
-        return `layer_state ${mask} bitwise_and not not ${p.usage} input_state_binary mul`;
-      },
-    },
-    {
-      id: "jiggler", name: "Mouse jiggler", group: "Fun",
-      desc: "Move the cursor by itself so the host never goes idle.",
-      params: [{ key: "amp", label: "Amplitude", type: "number", default: "30" }],
-      build: (p) => `time 5 div sin ${p.amp} mul`,
-    },
-  ];
 
   window.HRX_EXPR = {
     OPS, USAGE_NAMES, INPUT_CHOICES, usageLabel,
     tokenize, isNumTok, isHexTok, parse, serialize, toEnglish,
     isLeaf, toPipeline, fromPipeline,
-    mkNum, mkUsage, mkOp, mkInput, TEMPLATES,
+    mkNum, mkUsage, mkOp, mkInput,
   };
 })();

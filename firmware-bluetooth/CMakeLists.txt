@@ -4,6 +4,12 @@ set(BOARD_ROOT ${CMAKE_CURRENT_LIST_DIR})
 
 add_compile_definitions(PERSISTED_CONFIG_SIZE=2048)
 
+# Native combos (AND-gate usage page 0xFFFB). This build compiles the shared mapping engine
+# (../firmware/src/remapper.cc), where the combo code sits behind #ifdef COMBO_ENABLED — so
+# without this define the nRF52840 boards would silently ignore combos while every RP2040/RP2350
+# board honoured them. Same switch, same default (ON) as firmware/CMakeLists.txt.
+add_compile_definitions(COMBO_ENABLED)
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(NONE)
 

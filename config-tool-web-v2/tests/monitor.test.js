@@ -1,0 +1,161 @@
+/* MONITOR tests — drive a real HID input report through device.js and check what comes out.
+
+   The monitor is the one feature that is pure wire-parsing: the device streams report 101 with
+   7 slots of [u32 usage][i32 value][u8 hub_port]. If that parse is off by a byte, the Monitor
+   tab silently shows nothing (or garbage) and you only find out with hardware in your hand.
+
+   Run: cd config-tool-web-v2 && node --test tests/*.test.js */
+const test = require("node:test");
+const assert = require("node:assert");
+
+const REPORT_ID_MONITOR = 101;
+const REPORT_ID_CONFIG = 100;
+
+function loadDevice() {
+  delete require.cache[require.resolve("../js/device.js")];
+  delete require.cache[require.resolve("../js/crc.js")];
+
+  const listeners = {};
+  const fake = {
+    productName: "JJ8S",
+    vendorId: 0xcafe,
+    productId: 0xbabe,
+    opened: false,
+    collections: [{ usagePage: 0xff00 }],
+    sentCommands: [],
+    addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+    removeEventListener() {},
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    async sendFeatureReport(id, buffer) {
+      const dv = new DataView(buffer);
+      this.sentCommands.push({ cmd: dv.getUint8(1), arg: dv.getUint8(2) });
+    },
+    async receiveFeatureReport() {
+      const D = require("../js/device.js");
+      const withId = new ArrayBuffer(33);
+      const body = new DataView(withId, 1);
+      body.setUint8(0, 18);
+      D.addCrc(body);
+      return new DataView(withId);
+    },
+  };
+  Object.defineProperty(globalThis, "navigator", {
+    value: { hid: { requestDevice: async () => [fake] } },
+    configurable: true, writable: true,
+  });
+  const D = require("../js/device.js");
+  return { D, fake, fire: (type, ev) => (listeners[type] || []).forEach((fn) => fn(ev)) };
+}
+
+// Build one monitor report exactly as the firmware sends it:
+// monitor_report_t = 7 x { u32 usage, i32 value, u8 hub_port }  (9 bytes each)
+function monitorReport(items) {
+  const buf = new ArrayBuffer(7 * 9);
+  const dv = new DataView(buf);
+  items.forEach((it, i) => {
+    dv.setUint32(i * 9, it.usage, true);
+    dv.setInt32(i * 9 + 4, it.value, true);
+    dv.setUint8(i * 9 + 8, it.hub_port || 0);
+  });
+  return dv;
+}
+
+test("a monitor report is decoded into usage / value / hub_port", async () => {
+  const { D, fire } = loadDevice();
+  await D.connect();
+
+  const seen = [];
+  D.onMonitor((rec) => seen.push(rec));
+
+  fire("inputreport", {
+    reportId: REPORT_ID_MONITOR,
+    data: monitorReport([
+      { usage: 0x000c00e9, value: 1, hub_port: 0 },   // Volume Up pressed
+      { usage: 0x00010030, value: -42, hub_port: 2 }, // Mouse X, negative, on hub port 2
+    ]),
+  });
+
+  assert.strictEqual(seen.length, 2, "both populated slots must be reported");
+  assert.deepStrictEqual(seen[0], { usage: "0x000c00e9", value: 1, hub_port: 0 });
+  assert.deepStrictEqual(seen[1], { usage: "0x00010030", value: -42, hub_port: 2 },
+    "value must be read as SIGNED (an axis can go negative)");
+  await D.disconnect();
+});
+
+test("empty slots (usage 0) are ignored", async () => {
+  const { D, fire } = loadDevice();
+  await D.connect();
+  const seen = [];
+  D.onMonitor((rec) => seen.push(rec));
+
+  fire("inputreport", {
+    reportId: REPORT_ID_MONITOR,
+    data: monitorReport([{ usage: 0x000c00e9, value: 1 }]), // slots 1..6 are zero
+  });
+  assert.strictEqual(seen.length, 1, "the 6 empty slots must not produce phantom rows");
+  await D.disconnect();
+});
+
+test("all 7 slots decode (a busy device fills the report)", async () => {
+  const { D, fire } = loadDevice();
+  await D.connect();
+  const seen = [];
+  D.onMonitor((rec) => seen.push(rec));
+
+  const items = Array.from({ length: 7 }, (_, i) => ({ usage: 0x00070004 + i, value: i + 1, hub_port: i }));
+  fire("inputreport", { reportId: REPORT_ID_MONITOR, data: monitorReport(items) });
+
+  assert.strictEqual(seen.length, 7);
+  assert.strictEqual(seen[6].usage, "0x0007000a");
+  assert.strictEqual(seen[6].value, 7);
+  assert.strictEqual(seen[6].hub_port, 6, "the 7th slot must land at byte offset 54");
+  await D.disconnect();
+});
+
+test("reports on OTHER report ids are ignored (config replies must not reach the monitor)", async () => {
+  const { D, fire } = loadDevice();
+  await D.connect();
+  const seen = [];
+  D.onMonitor((rec) => seen.push(rec));
+
+  fire("inputreport", {
+    reportId: REPORT_ID_CONFIG, // not the monitor report
+    data: monitorReport([{ usage: 0x000c00e9, value: 1 }]),
+  });
+  assert.strictEqual(seen.length, 0);
+  await D.disconnect();
+});
+
+test("SET_MONITOR_ENABLED is actually sent to the device when the tab turns it on", async () => {
+  const { D, fake } = loadDevice();
+  await D.connect();
+  fake.sentCommands.length = 0;
+
+  await D.setMonitorEnabled(true);
+  const on = fake.sentCommands.find((c) => c.cmd === 22); // SET_MONITOR_ENABLED
+  assert.ok(on, "enabling the monitor must send command 22");
+  assert.strictEqual(on.arg, 1, "with the payload 1");
+
+  fake.sentCommands.length = 0;
+  await D.setMonitorEnabled(false);
+  const off = fake.sentCommands.find((c) => c.cmd === 22);
+  assert.ok(off, "leaving the tab must send command 22");
+  assert.strictEqual(off.arg, 0, "with the payload 0 — otherwise the device keeps streaming forever");
+  await D.disconnect();
+});
+
+test("the monitor stream is re-enabled after a reconnect", async () => {
+  const { D, fake } = loadDevice();
+  await D.connect();
+  await D.setMonitorEnabled(true);
+  await D.disconnect();
+
+  // reconnecting must restore the streaming state, not silently leave it off
+  fake.sentCommands.length = 0;
+  await D.connect();
+  const cmd = fake.sentCommands.find((c) => c.cmd === 22);
+  assert.ok(cmd, "connect() must push the monitor state to the device");
+  assert.strictEqual(cmd.arg, 1, "the monitor was on before — it must come back on");
+  await D.disconnect();
+});

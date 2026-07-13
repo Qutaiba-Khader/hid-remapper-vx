@@ -343,24 +343,59 @@
      (visual block builder + RPN code editor, two-way synced). */
 
   /* ---------------- ACTIONS ---------------- */
-  // Real release assets — filenames MUST match CI / the stock tool exactly (CLAUDE.md rule #4).
-  const FW_BASE = "https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/";
+  // Real release assets — filenames MUST match CI exactly (CLAUDE.md rule #4). Every file
+  // below was checked against the published release; a typo here is a 404 for the user.
+  //
+  // DUAL BOARDS (verified against firmware/CMakeLists.txt, not from memory):
+  //   Side A builds with tusb_config_device -> it is the USB DEVICE, it plugs into the PC,
+  //                                            it holds the config and runs the mapping engine.
+  //   Side B builds with tusb_config_host   -> it is the USB HOST, your keyboard/remote plugs
+  //                                            into it; it just streams reports to A over UART.
+  const FW_REPO = "https://github.com/Qutaiba-Khader/hid-remapper-vx";
+  const FW_BASE = FW_REPO + "/releases/latest/download/";
+  const FW_VERSION_FALLBACK = "r2026-07-13"; // shown if the GitHub API can't be reached
+
   const FW_BOARDS = [
-    { name: "Pico / Pico W", chip: "RP2040", led: false, files: [
+    { name: "Pico / Pico W", chip: "RP2040", files: [
       { file: "remapper.uf2", sub: "Single board" },
-      { file: "remapper_dual_a.uf2", sub: "Dual · device side" },
-      { file: "remapper_dual_b.uf2", sub: "Dual · host side" },
+      { file: "remapper_dual_a.uf2", sub: "Dual · side A — plugs into the PC" },
+      { file: "remapper_dual_b.uf2", sub: "Dual · side B — your device plugs in here" },
+      { file: "remapper_dual_combined.uf2", sub: "Dual · combined (A flashes B over SWD)" },
+      { file: "remapper_serial.uf2", sub: "Serial (input over an external serial link)" },
     ] },
-    { name: "Pico 2 / Pico 2 W", chip: "RP2350", led: false, files: [
+    { name: "Pico 2 / Pico 2 W", chip: "RP2350", files: [
       { file: "remapper_pico2.uf2", sub: "Single board" },
+      { file: "remapper_pico2_dual_a.uf2", sub: "Dual · side A — plugs into the PC" },
+      { file: "remapper_pico2_dual_b.uf2", sub: "Dual · side B — your device plugs in here" },
+      { file: "remapper_pico2_dual_combined.uf2", sub: "Dual · combined (A flashes B over SWD)" },
     ] },
     { name: "RP2040-Zero", chip: "RP2040", led: true, files: [
+      { file: "remapper.uf2", sub: "Single board (no LED)" },
       { file: "remapper_rp2040_zero_led.uf2", sub: "Single · onboard RGB LED", led: true },
-      { file: "remapper_rp2040_zero_dual_a_led.uf2", sub: "Dual · device side · RGB LED", led: true },
-      { file: "remapper_rp2040_zero_dual_b.uf2", sub: "Dual · host side" },
+      { file: "remapper_rp2040_zero_dual_a.uf2", sub: "Dual · side A — plugs into the PC" },
+      { file: "remapper_rp2040_zero_dual_a_led.uf2", sub: "Dual · side A · onboard RGB LED", led: true },
+      { file: "remapper_rp2040_zero_dual_b.uf2", sub: "Dual · side B — your device plugs in here" },
     ] },
     { name: "RP2350-Zero", chip: "RP2350", led: true, files: [
+      { file: "remapper_pico2.uf2", sub: "Single board (no LED)" },
       { file: "remapper_pico2_led.uf2", sub: "Single · onboard RGB LED", led: true },
+    ] },
+    { name: "Bluetooth", chip: "nRF52840", files: [
+      { file: "remapper_adafruit_feather_nrf52840.uf2", sub: "Adafruit Feather nRF52840" },
+      { file: "remapper_seeed_xiao_nrf52840.uf2", sub: "Seeed XIAO nRF52840" },
+    ] },
+    { name: "Other boards", chip: "RP2040 / RP2350", files: [
+      { file: "remapper_board.uf2", sub: "Custom JLCPCB board" },
+      { file: "remapper_board_v7.uf2", sub: "Custom board v7" },
+      { file: "remapper_board_v8.uf2", sub: "Custom board v8" },
+      { file: "remapper_feather.uf2", sub: "Adafruit Feather RP2040 USB Host" },
+      { file: "remapper_waveshare_rp2040_pizero.uf2", sub: "Waveshare RP2040-PiZero" },
+      { file: "remapper_waveshare_rp2350_pizero.uf2", sub: "Waveshare RP2350-PiZero" },
+      { file: "remapper_waveshare_rp2350_usb_a.uf2", sub: "Waveshare RP2350 USB-A" },
+      { file: "remapper_flatbox_rev4.uf2", sub: "Flatbox rev4" },
+      { file: "remapper_flatbox_rev8.uf2", sub: "Flatbox rev8" },
+      { file: "remapper_meisterconverter.uf2", sub: "MeisterConverter" },
+      { file: "remapper_rp2040abb.uf2", sub: "RP2040 ABB" },
     ] },
   ];
 
@@ -453,7 +488,19 @@
         ${card(ICON.layers, "Flash B-side", "Flash the host-side firmware for two-board (dual) devices.", "Flash B-side", true, "flashb")}
         ${card(ICON.plug, "Pair new device", "Put a Bluetooth remapper into pairing mode.", "Enable pairing", false, "pair")}
       </div>
-      <div class="qa-section-head" style="margin:26px 0 14px"><h3>Firmware downloads</h3><p>Latest <code>.uf2</code> builds — grouped by board. Pick <b>single</b> or <b>dual</b> (device/host side); RGB-LED builds drive the onboard WS2812.</p></div>
+      <div class="qa-section-head" style="margin:26px 0 14px">
+        <h3>Firmware downloads</h3>
+        <p>
+          <span class="fw-release" id="fwRelease">${FW_VERSION_FALLBACK}</span>
+          <span class="fw-release-note">includes native combos</span>
+          — every link below is that release.
+        </p>
+        <p>
+          Pick <b>single</b> board, or for a two-board build: <b>side A</b> plugs into the PC (it
+          holds the config and runs the mapping engine), <b>side B</b> is what your keyboard or
+          remote plugs into. RGB-LED builds drive the onboard WS2812.
+        </p>
+      </div>
       <div class="fw-grid">
         ${FW_BOARDS.map(fwBoardHtml).join("")}
       </div>
@@ -466,5 +513,15 @@
       else deviceAction(a);
     }));
     // firmware links are real <a href> downloads — no JS handler needed.
+
+    // Show the ACTUAL tag the /releases/latest/ links resolve to, rather than a number baked
+    // into this file that can silently go stale.
+    fetch("https://api.github.com/repos/Qutaiba-Khader/hid-remapper-vx/releases/latest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rel) => {
+        const el = $("#fwRelease", container);
+        if (el && rel && rel.tag_name) el.textContent = rel.tag_name;
+      })
+      .catch(() => { /* offline, or rate-limited — the fallback tag stays */ });
   };
 })();

@@ -109,25 +109,16 @@
   };
   const FETCHES = [["input_state", "value"], ["input_state_binary", "pressed?"], ["input_state_scaled", "0–255"]];
 
-  /* template gallery — every recipe parses to a clean block tree */
-  const TEMPLATES = [
-    { name: "Scale mouse speed", desc: "Axis × a sensitivity factor", rpn: "0x00010030 input_state 0.05 mul" },
-    { name: "Re-center + scale", desc: "Offset a stick to zero, then scale", rpn: "0x00010030 input_state -128 add 0.05 mul" },
-    { name: "Invert an axis", desc: "Flip direction (× −1)", rpn: "0x00010030 input_state -1 mul" },
-    { name: "Clamp to range", desc: "Keep a value between min and max", rpn: "0x00010033 input_state -100 100 clamp" },
-    { name: "Axis above threshold", desc: "On/off when an axis passes a value", rpn: "0x00010030 input_state 64 gt" },
-    { name: "Button → value", desc: "Press sends a fixed amount", rpn: "0x00090001 input_state_binary 100 mul" },
-    { name: "Two buttons (AND)", desc: "Only when both are held", rpn: "0x00090001 input_state_binary 0x00090002 input_state_binary mul" },
-    { name: "Either button (OR)", desc: "When either one is held", rpn: "0x00090001 input_state_binary 0x00090002 input_state_binary max" },
-  ];
-
   const SYM = { add: "+", sub: "−", mul: "×", div: "÷", mod: "mod", gt: ">", lt: "<", eq: "=", bitwise_and: "&", bitwise_or: "|", bitwise_not: "~" };
 
   /* token palette — tap to append onto the stack (Option C: stack-lane model) */
   const PALETTE_GROUPS = [
+    // `pick: true` = open the real key picker and use whatever the user chooses, instead of
+    // injecting a hardcoded usage. `op` is the fetch applied to the chosen key.
     ["Values", [
-      { label: "Input", cat: "input", ins: ["0x00010030", "input_state"] },
-      { label: "Button", cat: "input", ins: ["0x00090001", "input_state_binary"] },
+      { label: "Key value…", title: "Pick a key/axis — its analog value", cat: "input", pick: true, op: "input_state" },
+      { label: "Key pressed?…", title: "Pick a key — 1 while it is held, else 0", cat: "input", pick: true, op: "input_state_binary" },
+      { label: "Key 0–255…", title: "Pick an axis — its scaled 0-255 value", cat: "input", pick: true, op: "input_state_scaled" },
       { label: "Number", cat: "num", ins: ["0"] },
       { label: "Time", cat: "time", ins: ["time"] },
       { label: "Layers", cat: "state", ins: ["layer_state"] },
@@ -267,20 +258,9 @@
     const body = el(".modal-body");
     const main = el(".modal-main");
 
-    // LEFT: templates + block palette
+    // LEFT: block palette. (The mock had a "Start from a template" gallery of canned recipes
+    // hardcoded to Mouse X / Button 1. It was example data, not the user's device — removed.)
     const pal = el(".palette");
-    const tsec = el(".pal-sec");
-    tsec.appendChild(el(".pal-sec-title", null, "Start from a template"));
-    const tlist = el(".tmpl-list");
-    TEMPLATES.forEach((t) => {
-      tlist.appendChild(el("button.tmpl-item", { onclick: () => { loadDraft(t.rpn); snapshot(false); } }, [
-        el(".ti-name", null, t.name),
-        el(".ti-desc", null, t.desc),
-      ]));
-    });
-    tsec.appendChild(tlist);
-    pal.appendChild(tsec);
-
     const bsec = el(".pal-sec");
     bsec.appendChild(el(".pal-sec-title", null, "Add a block"));
     bsec.appendChild(el(".pal-hint", null, "Tap to append onto the stack — watch it build on the right."));
@@ -422,6 +402,20 @@
 
   /* ---- palette append + copy ---- */
   function addFromPalette(it) {
+    // A usage chip must NOT inject a hardcoded placeholder code (the mock shipped 0x00010030
+    // "Mouse X" and 0x00090001 "Button 1" and left them there). Open the real key picker and
+    // let the user choose, exactly like the Mappings tab does.
+    if (it.pick && window.openPicker) {
+      window.openPicker({
+        mode: "input",
+        current: null,
+        onSelect: (code) => {
+          M.tokens.push(code, it.op);
+          commitTokens(false);
+        },
+      });
+      return;
+    }
     M.tokens.push.apply(M.tokens, it.ins);
     commitTokens(false);
   }

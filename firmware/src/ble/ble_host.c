@@ -245,6 +245,10 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
  */
 /* Forget one device: drop its LTK from the bonding db AND the "last connected" tag, so the next
    attempt is a genuine fresh pairing rather than another doomed re-encryption. */
+/* Kept for the clear_bonds() config command (still an empty stub on the Pico path). NOT called
+   automatically any more -- see hog_discovery_timeout() for why unilaterally dropping our key
+   behind the user's back is harmful. */
+__attribute__((unused))
 static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type){
     // gap_delete_bonding() is the portable API. (This btstack has no
     // le_device_db_index_for_address.)
@@ -301,8 +305,16 @@ static void hog_discovery_timeout(btstack_timer_source_t * ts){
     UNUSED(ts);
     if (app_state != W4_HID_CLIENT_CONNECTED) return;
     printf("!! HID discovery timed out -- the peer accepted the link but will not serve its GATT db.\n");
-    printf("   Deleting the bond and pairing fresh.\n");
-    ble_forget_device(remote_device.addr, remote_device.addr_type);
+    printf("   This is almost always the REMOTE, not us: a BLE HID device serves its HID service\n");
+    printf("   to ONE bonded host. If it is still paired to a TV/phone, put it into pairing mode.\n");
+
+    // DO NOT delete the bond here.
+    //
+    // An earlier version did, and it made things worse: deleting OUR key while the remote keeps
+    // ITS key leaves a HALF BOND. The remote then thinks it already knows us, so it accepts the
+    // link, refuses to re-pair, and refuses to serve GATT -- a deadlock that no firmware can get
+    // out of, and which breaks other (working) firmware on the same remote too. The fix has to
+    // happen on the remote (re-pair it), not by quietly desyncing the keys behind the user's back.
     app_state = W4_TIMEOUT_THEN_SCAN;
     if (connection_handle != HCI_CON_HANDLE_INVALID) {
         gap_disconnect(connection_handle);   // the disconnect handler restarts the scan

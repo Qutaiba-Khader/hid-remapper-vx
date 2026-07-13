@@ -192,12 +192,13 @@
     let comboSkipped = 0;
     usable.forEach((m) => {
       if ((m.inputs || []).length > 1) {
-        // The Combos master switch means "don't send combos to the DEVICE". It must NOT
-        // strip them from an exported JSON — that would delete the user's combo rows from
-        // their own config file, and would misalign disabled_rows (which has one entry per
-        // row) on re-import.
+        // A combo row may be withheld from the DEVICE (master switch off, or past the
+        // firmware's NCOMBOS limit) — but it must NEVER be stripped from a JSON export.
+        // Doing so would delete the user's combo rows from their own config file and
+        // misalign disabled_rows (one entry per row) on re-import.
         if (opts.forDevice && !combosEnabled) { comboSkipped++; return; }
-        if (nextComboId > NCOMBOS) { comboOverflow++; return; }
+        if (opts.forDevice && nextComboId > NCOMBOS) { comboOverflow++; return; }
+        // ids past NCOMBOS only ever appear in an export, which the firmware never sees
         mappings.push(...appComboToConfigMappings(m, nextComboId++));
       } else {
         mappings.push(appMappingToConfig(m));

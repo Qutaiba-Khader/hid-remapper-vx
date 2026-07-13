@@ -162,14 +162,20 @@ function wireShell() {
 // emulated-output profiles, indexed by our_descriptor_number (shared with Settings)
 const PROFILE_NAMES = window.HRX_STATE.PROFILES;
 
-// Has the config in APP come FROM the connected device?
+// Where did the config currently in APP come from?
 //
-// This matters because saveToDevice() sends CLEAR_MACROS / CLEAR_EXPRESSIONS / CLEAR_QUIRKS
-// and then writes whatever APP holds. The Macros tab has no editor yet and state.js ships
-// sample expressions, so saving a never-loaded APP would ERASE the device's macros and
-// overwrite its expressions with samples. We therefore load on connect, and refuse to save
-// until a load has succeeded.
-let deviceLoaded = false;
+// This matters because saveToDevice() sends CLEAR_MAPPING / CLEAR_MACROS / CLEAR_EXPRESSIONS /
+// CLEAR_QUIRKS and then writes whatever APP holds. The Macros tab has no editor yet and state.js
+// ships sample expressions, so saving a config that did NOT come from the device can silently
+// erase the device's macros/expressions/quirks.
+//
+//   "sample"  - the page's built-in demo config (boot state). Never savable.
+//   "device"  - loaded from the connected device. Safe to save.
+//   "json"    - imported / hand-edited / the JSON modal's sample. Savable, but only after the
+//               user confirms, because it may not carry the device's macros or quirks.
+let configSource = "sample";
+window.HRX.setConfigSource = (src) => { configSource = src; };
+window.HRX.getConfigSource = () => configSource;
 
 // Fold a device `config` (from device.js) back into the shared APP object in place.
 // APP is a const reference held by every module, so we mutate rather than reassign.
@@ -192,14 +198,14 @@ async function handleConn(act) {
       APP.device.firmware = info.firmware;
       if (!APP.device.profile) APP.device.profile = "—";
       APP.connection = "connected";
-      deviceLoaded = false;
+      configSource = "sample";
 
       // Pull the device's real config immediately, so what you see (and what a later Save
       // writes back) is the device's own state — not this page's sample data.
       try {
         const config = await dev.loadFromDevice();
         applyDeviceConfig(config);
-        deviceLoaded = true;
+        configSource = "device";
         render();
         toast("Connected to " + info.name + " — loaded " + ((config.mappings && config.mappings.length) || 0) + " mappings");
       } catch (e) {
@@ -207,27 +213,36 @@ async function handleConn(act) {
         toast("Connected to " + info.name + ", but the load failed: " + String((e && e.message) || e) + " — saving is blocked until a load succeeds");
       }
     } catch (e) {
-      APP.connection = "disconnected"; deviceLoaded = false; render();
+      APP.connection = "disconnected"; configSource = "sample"; render();
       toast(String((e && e.message) || e));
     }
   } else if (act === "disconnect") {
     try { await dev.disconnect(); } catch (e) {}
-    APP.connection = "disconnected"; deviceLoaded = false; render(); toast("Device disconnected");
+    APP.connection = "disconnected"; configSource = "sample"; render(); toast("Device disconnected");
   } else if (act === "load") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
     try {
       const config = await dev.loadFromDevice();
       applyDeviceConfig(config);
-      deviceLoaded = true;
+      configSource = "device";
       render();
       toast("Loaded " + ((config.mappings && config.mappings.length) || 0) + " mappings from device");
     } catch (e) { toast("Load failed: " + String((e && e.message) || e)); }
   } else if (act === "save") {
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
-    if (!deviceLoaded) {
-      // guard: see the deviceLoaded comment above — this would wipe the device's macros
-      toast("Load from the device first — saving now would erase its macros and expressions");
+    // See the configSource comment above. A save rewrites EVERYTHING on the device, so it must
+    // never happen with the page's own demo data, and must be confirmed for hand-edited/imported
+    // JSON (which may not carry the device's macros or quirks).
+    if (configSource === "sample") {
+      toast("Load from the device first — saving now would erase its macros, expressions and quirks");
       return;
+    }
+    if (configSource === "json") {
+      const ok = window.confirm(
+        "This config came from JSON, not from the device.\n\n" +
+        "Saving replaces the device's mappings, macros, expressions and quirks with what is in " +
+        "this page. Anything the JSON does not carry will be erased.\n\nSave anyway?");
+      if (!ok) { toast("Save cancelled"); return; }
     }
     try {
       const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });

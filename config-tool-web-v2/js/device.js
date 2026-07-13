@@ -333,7 +333,12 @@
     if (busy) return { ok: false, code: 0 };
     busy = true;
     try {
+      // SUSPEND stops the device processing input while we rewrite its config. It MUST be
+      // paired with a RESUME on every path — if a write throws halfway through (a transient
+      // WebHID failure, an unplug, a CRC error), an unresumed device accepts no input at all
+      // and looks bricked until it is physically replugged. Hence the inner try/finally.
       await sendCommand(SUSPEND);
+      try {
       const flags = (config.ignore_auth_dev_inputs ? IGNORE_AUTH_DEV_INPUTS_FLAG : 0) |
         (config.gpio_output_mode ? GPIO_OUTPUT_MODE_FLAG : 0) |
         (config.normalize_gamepad_inputs ? NORMALIZE_GAMEPAD_INPUTS_FLAG : 0);
@@ -404,10 +409,13 @@
 
       await sendCommand(PERSIST_CONFIG);
       const [code] = await readFeature([U8]);
-      await sendCommand(RESUME);
       if (code === PERSIST_CONFIG_SUCCESS) return { ok: true, code };
       if (code === PERSIST_CONFIG_CONFIG_TOO_BIG) return { ok: false, code, error: "Configuration too big to persist." };
       return { ok: false, code, error: "Unknown PERSIST_CONFIG return code (" + code + ")." };
+      } finally {
+        // always hand the device back, even if the save blew up midway
+        try { await sendCommand(RESUME); } catch (e) { /* device already gone; nothing to resume */ }
+      }
     } finally {
       busy = false;
     }

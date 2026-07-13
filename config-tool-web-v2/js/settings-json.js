@@ -50,6 +50,10 @@
   function applyJson(obj) {
     const next = window.HRX_TRANSLATE.configToApp(obj, APP, window.HRX_STATE.uid);
     Object.assign(APP, next);
+    // This config no longer mirrors the device — it came from JSON (import, hand-edit, or the
+    // modal's sample). app.js will make the user confirm before a save overwrites the device's
+    // macros/expressions/quirks with it.
+    if (window.HRX.setConfigSource) window.HRX.setConfigSource("json");
   }
 
   /* ---- modal ---- */

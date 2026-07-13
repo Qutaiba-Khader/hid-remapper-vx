@@ -305,6 +305,20 @@ if(PICO_BOARD STREQUAL "pico_w")
         message(STATUS "BLE target address: ${BLE_TARGET_ADDR}")
     endif()
 
+    # Forget every bond at boot, so PAIRING is exercised from scratch every time instead of
+    # silently re-encrypting a remembered device. For testing the pairing path itself.
+    option(BLE_CLEAR_BONDS "Wipe all BLE bonds on boot (forces a fresh pair every time)" OFF)
+    if(BLE_CLEAR_BONDS)
+        target_compile_definitions(remapper_picow_ble PRIVATE BLE_CLEAR_BONDS)
+        message(STATUS "BLE: bonds will be CLEARED on every boot")
+    endif()
+
+    # Dump every HCI/ATT packet. Very verbose; only for diagnosing a silent GATT exchange.
+    option(BLE_HCI_DUMP "Dump all HCI/ATT traffic to stdio" OFF)
+    if(BLE_HCI_DUMP)
+        target_compile_definitions(remapper_picow_ble PRIVATE BLE_HCI_DUMP)
+    endif()
+
     target_link_libraries(remapper_picow_ble
         pico_stdlib
         pico_cyw43_arch_none

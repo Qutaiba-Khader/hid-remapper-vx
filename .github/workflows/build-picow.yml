@@ -17,6 +17,11 @@ on:
         description: 'Connect ONLY to this BLE MAC (blank = any device advertising the HID UUID). Not device-specific: this is the same knob the web tool will drive once you can pick from a scan list.'
         required: false
         default: ''
+      ble_clear_bonds:
+        description: 'Wipe all BLE bonds on every boot, so PAIRING is tested from scratch instead of silently re-encrypting a remembered device.'
+        required: false
+        type: boolean
+        default: false
 defaults:
   run:
     shell: bash --noprofile --norc -x -e -o pipefail {0}
@@ -37,7 +42,7 @@ jobs:
         run: |
           mkdir build-picow
           cd build-picow
-          PICO_BOARD=pico_w cmake .. -DBLE_TARGET_ADDR="${{ github.event.inputs.ble_target_addr }}"
+          PICO_BOARD=pico_w cmake .. -DBLE_TARGET_ADDR="${{ github.event.inputs.ble_target_addr }}" -DBLE_CLEAR_BONDS=${{ github.event.inputs.ble_clear_bonds == 'true' && 'ON' || 'OFF' }}
           make -j$(nproc) remapper_picow remapper_picow_ble
           cd ..
           mkdir -p artifacts

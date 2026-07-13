@@ -59,11 +59,35 @@
       </div>`;
   }
 
+  /* A mapping whose OUTPUT is a layer (usage page 0xFFF1) has one layer FORCED, because the
+     firmware forces it (set_mapping_from_config): a non-sticky layer key must be present on the
+     layer it triggers (or you could never get back out of it), and a sticky one must NOT be.
+     Mirror that here so the UI doesn't lie about what the device will do. */
+  const LAYERS_PAGE = 0xfff10000;
+  function forcedLayer(m) {
+    const u = parseInt(m.output, 16) >>> 0;
+    if (!Number.isFinite(u) || (u & 0xffff0000) >>> 0 !== LAYERS_PAGE) return null;
+    const layer = u & 0xffff;
+    return layer < 8 ? layer : null;
+  }
+  function applyLayerRules(m) {
+    const fl = forcedLayer(m);
+    if (fl == null) return;
+    m.layers[fl] = !m.sticky;   // non-sticky: on. sticky: off.
+  }
+
   /* ---------- flags: layers (line 1) + Sticky/Tap/Hold (line 2) — LOCKED 2-line ---------- */
   function flagsHtml(m) {
-    const layers = m.layers.map((on, i) =>
-      `<span class="chk layer ${on ? "on" : ""}" data-layer="${i}" data-mid="${m.id}" title="Active on layer ${i}">${i}</span>`
-    ).join("");
+    applyLayerRules(m);
+    const fl = forcedLayer(m);
+    const layers = m.layers.map((on, i) => {
+      if (i === fl) {
+        return `<span class="chk layer locked ${on ? "on" : ""}" title="${m.sticky
+          ? "Forced off: a sticky layer key must not be active on the layer it toggles, or you could never toggle it back."
+          : "Forced on: a layer key must be active on the layer it activates, or you could never leave that layer."}">${i}</span>`;
+      }
+      return `<span class="chk layer ${on ? "on" : ""}" data-layer="${i}" data-mid="${m.id}" title="Active on layer ${i}">${i}</span>`;
+    }).join("");
     const sth = [
       ["sticky", "Sticky", "Sticky — output latches on; press again to release"],
       ["tap", "Tap", "Tap — fires on a quick tap (shorter than the tap-hold threshold)"],

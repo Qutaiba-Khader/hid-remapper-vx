@@ -67,6 +67,19 @@
     port: { arity: 1, out: 0, special: true, cat: "advanced" },
     monitor: { arity: 2, out: 0, special: true, cat: "advanced" },
     deadzone: { arity: 3, out: 2, special: true, cat: "advanced" },
+
+    /* The remaining firmware ops. They were missing entirely, which made `analyze()` flag any
+       expression using them as "Unknown operation" and DISABLE Apply — so an expression already on
+       the device could not be edited at all. Arities are taken from the firmware's own stack
+       validator (remapper.cc validate_expressions): debug/eol change nothing; auto_repeat and
+       scaling push one value; the fp32 fetches take one and return one; print_if consumes two. */
+    auto_repeat:            { arity: 0, out: 1, cat: "state", word: "auto-repeat" },
+    scaling:                { arity: 0, out: 1, cat: "state", word: "scaling" },
+    input_state_fp32:       { arity: 1, out: 1, cat: "input", fetch: true, label: "value (fp32)" },
+    prev_input_state_fp32:  { arity: 1, out: 1, cat: "input", fetch: true, label: "previous value (fp32)" },
+    debug:                  { arity: 0, out: 0, special: true, cat: "advanced" },
+    eol:                    { arity: 0, out: 0, special: true, cat: "advanced" },
+    print_if:               { arity: 2, out: 0, special: true, cat: "advanced" },
     deadzone2:{ arity: 4, out: 2, special: true, cat: "advanced" },
     dpad: { arity: 4, out: 1, special: true, cat: "advanced" },
   };

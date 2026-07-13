@@ -247,6 +247,28 @@
   }
 
   // ---- load ----
+  /* The usages the DEVICE itself reports — what it can emit (their/source) and what it can send to
+     the PC (our/target). v1 fetches these and adds them to the picker; without them, any usage your
+     particular device emits that is not in the static catalog can only be typed as raw hex.
+     RLE-encoded: each packet carries 3 (usage, count) pairs. */
+  async function getUsagesFromDevice(command, rleCount) {
+    const set = new Set();
+    let i = 0;
+    while (i < rleCount) {
+      await sendCommand(command, [[U32, i]]);
+      const f = await readFeature([U32, U32, U32, U32, U32, U32]);
+      for (let j = 0; j < 3; j++) {
+        const usage = f[2 * j];
+        const count = f[2 * j + 1];
+        if (usage !== 0) {
+          for (let k = 0; k < count; k++) set.add(hex8(usage + k));
+        }
+      }
+      i += 3;
+    }
+    return [...set].sort();
+  }
+
   async function loadFromDevice() {
     requireDevice();
     if (busy) return null;
@@ -336,6 +358,13 @@
           relative: !!(sizeFlags & QUIRK_FLAG_RELATIVE_MASK), signed: !!(sizeFlags & QUIRK_FLAG_SIGNED_MASK),
         });
       }
+
+      // what THIS device can actually emit / send — added to the picker so a usage your hardware
+      // reports but the static catalog doesn't know is still selectable (v1 parity)
+      config.device_usages = {
+        source: await getUsagesFromDevice(GET_THEIR_USAGES, theirCount),
+        target: await getUsagesFromDevice(GET_OUR_USAGES, ourCount),
+      };
       return config;
     } finally {
       busy = false;

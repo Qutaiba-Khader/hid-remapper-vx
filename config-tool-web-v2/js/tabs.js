@@ -224,7 +224,7 @@
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr>
-            ${["Usage code", "Usage name", "Last value", "Min", "Max", ""].map((th) => `<th style="text-align:left;padding:9px 12px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--label);border-bottom:1px solid var(--border)">${th}</th>`).join("")}
+            ${["Usage code", "Usage name", "Port", "Last value", "Min", "Max", ""].map((th) => `<th style="text-align:left;padding:9px 12px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--label);border-bottom:1px solid var(--border)">${th}</th>`).join("")}
           </tr></thead>
           <tbody id="monBody"></tbody>
         </table>
@@ -240,7 +240,7 @@
     if (!body) return;
     const rows = Array.from(monData.values());
     body.innerHTML = rows.map(rowMon).join("") ||
-      `<tr><td colspan="6" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
+      `<tr><td colspan="7" style="padding:26px;text-align:center;color:var(--label)">Press a key on your device…</td></tr>`;
     $$('#monBody [data-mkmap]').forEach((b) => b.addEventListener("click", () => {
       // Create the mapping AND take the user to it. Previously this pushed the row and stayed
       // on the Monitor tab, so nothing visible happened and the button looked dead.
@@ -259,6 +259,7 @@
     return `<tr>
       <td style="padding:9px 12px;font-family:var(--font-mono);color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.usage}</td>
       <td style="padding:9px 12px;color:var(--text-strong);border-bottom:1px solid var(--border-soft)">${r.name}</td>
+      <td style="padding:9px 12px;font-family:var(--font-mono);color:#fff;border-bottom:1px solid var(--border-soft)">${r.hub_port || 0}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.last}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.min}</td>
       <td style="padding:9px 12px;font-family:var(--font-mono);border-bottom:1px solid var(--border-soft)">${r.max}</td>
@@ -473,6 +474,109 @@
     }));
   }
 
+  /* ---------------- QUIRKS ("custom usages") ----------------
+     A quirk teaches the remapper to read a field from a device whose HID descriptor is wrong or
+     incomplete: for VID:PID / interface / report id, treat the bits at `bitpos` (of `size` bits) as
+     the given usage. Wire format (device.js ADD_QUIRK): the size byte packs
+     relative (bit 7) | signed (bit 6) | size (bits 0-5). */
+  const QUIRK_BLANK = () => ({
+    vendor_id: "0x0000", product_id: "0x0000", interface: 0, report_id: 0,
+    usage: "0x00000000", bitpos: 0, size: 8, relative: false, signed: false,
+  });
+
+  function quirks() {
+    if (!Array.isArray(APP.quirks)) APP.quirks = [];
+    return APP.quirks;
+  }
+  function redrawQuirks() { window.renderQuirks($("#tabContent")); }
+
+  window.renderQuirks = function (container) {
+    const qs = quirks();
+
+    const rows = qs.map((q, i) => `
+      <div class="quirk-row">
+        <div class="quirk-grid">
+          ${qField(i, "vendor_id", "Vendor ID", q.vendor_id, "text", "0x1234")}
+          ${qField(i, "product_id", "Product ID", q.product_id, "text", "0x5678")}
+          ${qField(i, "interface", "Interface", q.interface, "number")}
+          ${qField(i, "report_id", "Report ID", q.report_id, "number")}
+          ${qField(i, "usage", "Usage", q.usage, "text", "0x00090001")}
+          ${qField(i, "bitpos", "Bit position", q.bitpos, "number")}
+          ${qField(i, "size", "Size (bits)", q.size, "number")}
+          <div class="quirk-flags">
+            <span class="chk mode word ${q.relative ? "on" : ""}" data-qflag="relative" data-qi="${i}" title="The field is a relative (delta) value">Relative</span>
+            <span class="chk mode word ${q.signed ? "on" : ""}" data-qflag="signed" data-qi="${i}" title="The field is signed (two's complement)">Signed</span>
+          </div>
+          <button class="icon-btn del" data-qdel="1" data-qi="${i}" title="Delete this quirk">${ICON.x}</button>
+        </div>
+      </div>`).join("");
+
+    container.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Quirks</div>
+          <div class="panel-sub">${qs.length} quirk${qs.length === 1 ? "" : "s"}. Teach the remapper to read a field from a device whose HID descriptor is wrong or incomplete.</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="setting-card" style="margin-bottom:14px">
+          <div class="sc-label">You probably don't need this</div>
+          <div class="sc-help" style="margin-bottom:0">Quirks exist for devices that lie about their own descriptor — a button that reports nothing, or an axis at the wrong offset. For <b>VID:PID</b> + <b>interface</b> + <b>report ID</b>, the <b>size</b> bits at <b>bit position</b> are read as the given <b>usage</b>. Use the <b>Monitor</b> tab to find what your device is actually sending. Nothing reaches the device until you press <b>Save to device</b>.</div>
+        </div>
+        ${qs.length ? rows : `<div class="macro-empty">No quirks. Your devices' descriptors are being taken at face value.</div>`}
+        <div class="macro-actions" style="border-top:none;margin-top:14px">
+          <button class="btn-hx btn-primary btn-sm" id="qAdd">${ICON.plus}<span>Add quirk</span></button>
+        </div>
+      </div>
+    </div>`;
+
+    wireQuirks(container);
+  };
+
+  function qField(i, key, label, value, type, placeholder) {
+    return `
+      <label class="quirk-field">
+        <span class="quirk-label">${label}</span>
+        <input class="input-hx" type="${type}" value="${value}" data-qkey="${key}" data-qi="${i}"
+               ${placeholder ? `placeholder="${placeholder}"` : ""}
+               ${type === "number" ? 'min="0"' : ""}>
+      </label>`;
+  }
+
+  function wireQuirks(root) {
+    const add = $("#qAdd", root);
+    if (add) add.addEventListener("click", () => { quirks().push(QUIRK_BLANK()); redrawQuirks(); });
+
+    $$('[data-qdel]', root).forEach((b) => b.addEventListener("click", () => {
+      quirks().splice(+b.dataset.qi, 1);
+      redrawQuirks();
+      toast("Quirk removed");
+    }));
+
+    $$('[data-qflag]', root).forEach((el) => el.addEventListener("click", () => {
+      const q = quirks()[+el.dataset.qi];
+      q[el.dataset.qflag] = !q[el.dataset.qflag];
+      redrawQuirks();
+    }));
+
+    $$('[data-qkey]', root).forEach((inp) => inp.addEventListener("change", () => {
+      const q = quirks()[+inp.dataset.qi];
+      const key = inp.dataset.qkey;
+      if (key === "vendor_id" || key === "product_id" || key === "usage") {
+        const raw = inp.value.trim().replace(/^0x/i, "");
+        const width = key === "usage" ? 8 : 4;
+        if (!/^[0-9a-f]{1,8}$/i.test(raw)) { toast("Enter a hex value, e.g. 0x1234"); redrawQuirks(); return; }
+        q[key] = "0x" + raw.toLowerCase().padStart(width, "0");
+      } else {
+        // the size byte packs relative|signed|size(6 bits), so size must fit in 6 bits
+        const max = key === "size" ? 63 : 255;
+        q[key] = Math.max(0, Math.min(max, Math.round(+inp.value) || 0));
+      }
+      redrawQuirks();
+    }));
+  }
+
   /* ---------------- EXPRESSIONS ----------------
      Rendered by js/expressions.js, which defines window.renderExpressions
      (visual block builder + RPN code editor, two-way synced). */
@@ -589,6 +693,14 @@
     inp.click();
   }
 
+  // The Bluetooth actions only exist on a Bluetooth remapper (v1 hides them too). Showing them
+  // on a USB device is an invitation to press a button that can only fail.
+  function isBluetooth() {
+    const dev = window.HRX_DEVICE;
+    const info = dev && dev.isConnected() && dev.getInfo();
+    return !!(info && info.bluetooth);
+  }
+
   function deviceAction(kind) {
     const dev = window.HRX_DEVICE;
     if (!dev.isConnected()) { toast("Connect a device first"); return; }
@@ -625,8 +737,8 @@
         ${card(ICON.file, "Import config", "Load a configuration from a JSON file on your computer.", "Import JSON", false, "import")}
         ${card(ICON.bolt, "Flash firmware", "Reboot into bootloader so you can drop a new .uf2 file.", "Enter bootloader", true, "flash")}
         ${card(ICON.layers, "Flash B-side", "Flash the host-side firmware for two-board (dual) devices.", "Flash B-side", true, "flashb")}
-        ${card(ICON.plug, "Pair new device", "Put a Bluetooth remapper into pairing mode.", "Enable pairing", false, "pair")}
-        ${card(ICON.x, "Forget all devices", "Clear every Bluetooth bond stored on the remapper. They must be paired again.", "Clear bonds", true, "bonds")}
+        ${isBluetooth() ? card(ICON.plug, "Pair new device", "Put a Bluetooth remapper into pairing mode.", "Enable pairing", false, "pair") : ""}
+        ${isBluetooth() ? card(ICON.x, "Forget all devices", "Clear every Bluetooth bond stored on the remapper. They must be paired again.", "Clear bonds", true, "bonds") : ""}
       </div>
       <div class="qa-section-head" style="margin:26px 0 14px">
         <h3>Firmware downloads</h3>

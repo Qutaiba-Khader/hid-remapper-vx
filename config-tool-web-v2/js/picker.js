@@ -39,7 +39,8 @@
   function pickerHtml() {
     const title = state.mode === "input" ? "Select input" : "Select output";
     const kicker = state.mode === "input" ? "Source usage" : "Target usage";
-    const nav = USAGE_CATEGORIES.map((c) => {
+    const dev = deviceCategory();
+    const nav = (dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES).map((c) => {
       const dot = c.led
         ? `<span class="nav-dot" style="background:conic-gradient(#ff3b30,#ffe11a,#22c55e,#22d3ee,#3b82f6,#a855f7,#ff5fa2,#ff3b30)"></span>`
         : `<span class="nav-dot" style="background:${c.accent}"></span>`;
@@ -66,8 +67,11 @@
             </div>
           </div>
           <div class="field">
-            <label>Custom</label>
-            <input class="input-hx" id="pickerCustom" placeholder="0x000c00e9" style="width:130px;font-family:var(--font-mono)">
+            <label>Custom hex</label>
+            <div style="display:flex;gap:6px">
+              <input class="input-hx" id="pickerCustom" placeholder="0x000c00e9" style="width:130px;font-family:var(--font-mono)">
+              <button class="btn-hx btn-sm" id="pickerCustomApply">${ICON.check}<span>Use</span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -95,11 +99,30 @@
       </div>`;
   }
 
+  /* The usages THIS device reports (fetched on load via GET_OUR_USAGES / GET_THEIR_USAGES).
+     Shown first, because they are the ones that definitely exist on the hardware in front of you —
+     and because a device can emit usages the static catalog has never heard of. */
+  function deviceCategory() {
+    const APP = window.HRX_STATE && window.HRX_STATE.APP;
+    const du = APP && APP.deviceUsages;
+    if (!du) return null;
+    const list = (state.mode === "input" ? du.source : du.target) || [];
+    if (!list.length) return null;
+    return {
+      id: "device",
+      label: state.mode === "input" ? "Reported by your device" : "Supported by your device",
+      accent: "#22c55e",
+      usages: list.map((code) => [code, window.HRX_USAGES.usageName(code)]),
+    };
+  }
+
   function listHtml(query) {
     const q = query.trim().toLowerCase();
     let blocks = "";
     let any = false;
-    USAGE_CATEGORIES.forEach((cat) => {
+    const dev = deviceCategory();
+    const cats = dev ? [dev].concat(USAGE_CATEGORIES) : USAGE_CATEGORIES;
+    cats.forEach((cat) => {
       const matches = cat.usages.filter(([code, name]) =>
         !q || name.toLowerCase().includes(q) || code.toLowerCase().includes(q)
       );
@@ -152,14 +175,23 @@
     const search = $("#pickerSearch");
     search.addEventListener("input", () => { $("#pickerList").innerHTML = listHtml(search.value); wirePills(); });
 
-    $("#pickerCustom").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && e.target.value.trim()) {
-        let v = e.target.value.trim();
-        if (!v.startsWith("0x")) v = "0x" + v;
-        state.onSelect(v.toLowerCase());
-        close();
+    // Custom hex — validated and zero-padded, with a real button (v1 parity). Sending an
+    // unpadded or malformed code straight to the device would write a garbage usage.
+    const custom = $("#pickerCustom");
+    const applyCustom = () => {
+      const raw = custom.value.trim().replace(/^0x/i, "");
+      if (!/^[0-9a-f]{1,8}$/i.test(raw)) {
+        custom.classList.add("bad");
+        if (window.HRX && window.HRX.toast) window.HRX.toast("Enter a hex usage code, e.g. 0x000c00e9");
+        return;
       }
-    });
+      const code = "0x" + raw.toLowerCase().padStart(8, "0");
+      state.onSelect(code);
+      close();
+    };
+    custom.addEventListener("input", () => custom.classList.remove("bad"));
+    custom.addEventListener("keydown", (e) => { if (e.key === "Enter") applyCustom(); });
+    $("#pickerCustomApply").addEventListener("click", applyCustom);
 
     $$('#pickerNav [data-jump]').forEach((b) => b.addEventListener("click", () => {
       $$('#pickerNav button').forEach((x) => x.classList.remove("on"));

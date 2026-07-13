@@ -122,6 +122,9 @@
 
   function tintToColor(tint) { return tint && TINT_HEX[tint] ? TINT_HEX[tint] : undefined; }
   function colorToTint(color) { return color && HEX_TINT[color.toLowerCase()] ? HEX_TINT[color.toLowerCase()] : null; }
+  // v1 lets a row be ANY colour. v2 offers 5 named tints — but a colour it doesn't recognise must be
+  // KEPT, not silently discarded, or importing a v1 config quietly loses the user's colour coding.
+  const keepColor = (color) => (color && !HEX_TINT[String(color).toLowerCase()] ? color : undefined);
 
   // ---- single mapping conversions ----
   function appMappingToConfig(m) {
@@ -137,7 +140,7 @@
       source_port: m.source_port || 0,
       target_port: m.target_port || 0,
     };
-    const color = tintToColor(m.tint);
+    const color = tintToColor(m.tint) || m.customColor;
     if (color) cm.color = color;
     return cm;
   }
@@ -154,6 +157,7 @@
       hold: !!cm.hold,
       scale: (cm.scaling == null ? DEFAULT_SCALING : cm.scaling) / 1000,
       tint: colorToTint(cm.color),
+      customColor: keepColor(cm.color),   // a v1 colour we have no tint for — do not lose it
       source_port: cm.source_port || 0,
       target_port: cm.target_port || 0,
       comboWindow: DEFAULT_COMBO_WINDOW_MS,
@@ -353,6 +357,8 @@
       // quirks MUST be carried back: saveToDevice() sends CLEAR_QUIRKS and then writes
       // config.quirks, so dropping them here would erase the device's quirks on the next save.
       quirks: config.quirks ? config.quirks.slice() : (base.quirks || []),
+      // the usages THIS device reports (not persisted — it is what the hardware told us)
+      deviceUsages: config.device_usages || base.deviceUsages || null,
       settings,
     });
   }

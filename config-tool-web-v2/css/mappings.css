@@ -202,6 +202,25 @@
   border-top: 1px dashed var(--border-soft); margin-top: 6px;
 }
 
+/* ---- QUIRKS ---- */
+.quirk-row {
+  border: 1px solid var(--border-bright); border-radius: var(--radius-sm);
+  background: var(--bg-deep); padding: 12px 14px; margin-bottom: 8px;
+}
+.quirk-grid { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.quirk-field { display: flex; flex-direction: column; gap: 4px; }
+.quirk-label {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.4px; text-transform: uppercase; color: #fff; opacity: 0.7;
+}
+.quirk-field .input-hx { width: 108px; font-family: var(--font-mono); font-size: 12px; }
+.quirk-flags { display: flex; gap: 6px; align-items: center; }
+.quirk-flags .chk.word { width: auto; height: auto; padding: 5px 9px; font-size: 10px; text-transform: uppercase; }
+.quirk-grid .icon-btn.del { margin-left: auto; }
+
+/* an invalid hex entry in the picker's custom field */
+.input-hx.bad { border-color: #d9534f; box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25); }
+
 /* a row that is not finished yet — it is NOT written to the device */
 .wg-branch.unfinished { border-left: 3px solid #f59e2e; }
 .unfinished-badge {
@@ -294,6 +313,9 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 .chk:hover { border-color: #46507e; }
+/* a layer the firmware forces for this mapping — not clickable, and it says why */
+.chk.layer.locked { cursor: not-allowed; opacity: 0.85; border-style: dashed; }
+.chk.layer.locked.on { box-shadow: none; }
 .chk.on { background: linear-gradient(160deg, var(--purple-hi), var(--purple-2)); border-color: #8a6cff; color: #fff; }
 .chk.layer.on { box-shadow: 0 2px 8px var(--purple-glow); }
 

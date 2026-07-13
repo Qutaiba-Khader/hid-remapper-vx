@@ -18,6 +18,7 @@ const PRIMARY_TABS = [
 const ADVANCED_TABS = [
   { id: "macros", label: "Macros", icon: ICON.macro },
   { id: "expressions", label: "Expressions", icon: ICON.fx },
+  { id: "quirks", label: "Quirks", icon: ICON.wrench },
   { id: "actions", label: "Actions", icon: ICON.file },
 ];
 
@@ -132,6 +133,7 @@ function renderActiveTab() {
     case "settings": return window.renderSettings(c);
     case "macros": return window.renderMacros(c);
     case "expressions": return window.renderExpressions(c);
+    case "quirks": return window.renderQuirks(c);
     case "actions": return window.renderActions(c);
   }
 }

@@ -289,6 +289,7 @@ static bool adv_event_contains_hid_service(const uint8_t * packet){
 #define HID_DISCOVERY_TIMEOUT_MS 6000
 
 static void hog_start_connect(void);
+static void hog_start_scan(void);
 static void ble_forget_device(const bd_addr_t addr, bd_addr_type_t addr_type);
 
 /**

@@ -734,7 +734,20 @@ void ble_host_init(void){
     // register for events from Security Manager
     sm_event_callback_registration.callback = &sm_packet_handler;
     sm_add_event_handler(&sm_event_callback_registration);
-    sm_set_authentication_requirements( SM_AUTHREQ_BONDING);
+
+    // DO NOT call sm_set_authentication_requirements() again here.
+    //
+    // This second call USED TO BE HERE, and it silently overwrote the one above -- dropping
+    // SM_AUTHREQ_SECURE_CONNECTION and leaving only SM_AUTHREQ_BONDING. The result: we paired
+    // with LEGACY, unauthenticated Just Works. Pairing "succeeded"... and then the remote
+    // refused to serve its HID characteristics, because they require a properly secured link.
+    // The peer accepted the connection and ignored every GATT request, so HID discovery went
+    // silent and the LED blinked forever with nothing in the log.
+    //
+    // The upstream example this file came from has this line commented out. We did not.
+    // (shiomachisoft/picow_ble_usb_hid_bridge keeps it commented, and it works.)
+    // The correct requirements are set once, above:
+    //     sm_set_authentication_requirements(SM_AUTHREQ_SECURE_CONNECTION | SM_AUTHREQ_BONDING);
     printf("init: handlers\n"); sleep_ms(60);
 
     /* LISTING_END */

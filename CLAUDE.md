@@ -65,8 +65,8 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
 - **[`config-tool-web-v2/`](config-tool-web-v2)** — the REDESIGNED tool (v2): vanilla JS, no build step, **combos**, per-field reset-to-default, live monitor. Live at `…/config-tool-web-v2/`.
   - `js/device.js` = WebHID + the 32-byte binary protocol (ported from v1's `code.js`).
   - `js/translate.js` = the APP⇄device-config boundary. **All unit conversions live here**: ms↔µs, `scale`↔`scaling` (×1000), and **expression constants↔fixed point (×1000)** — get that last one wrong and `0.05 mul` is written to the device as `0 mul`.
-  - Tests: `cd config-tool-web-v2 && node --test tests/*.test.js` (**84**, no deps). They include a full end-to-end flow against a fake device (`flow.test.js`), a firmware↔web contract check that reads the firmware source (`contract.test.js`), and guards against the mock's fake data creeping back.
-  - **Still missing vs v1:** macro editor and quirk editor (both are read-only/JSON-only in v2; the data round-trips untouched).
+  - Tests: `cd config-tool-web-v2 && node --test tests/*.test.js` (**89**, no deps). They include a full end-to-end flow against a fake device (`flow.test.js`), a firmware↔web contract check that reads the firmware source (`contract.test.js`), and guards against the mock's fake data creeping back.
+  - **Still missing vs v1:** the quirk editor only (read-only/JSON-only in v2; the data round-trips untouched). The macro editor now exists.
 - **[`.github/workflows/`](.github/workflows)** — [`build-rp2040.yml`](.github/workflows/build-rp2040.yml), [`build-nrf52.yml`](.github/workflows/build-nrf52.yml), [`release.yml`](.github/workflows/release.yml).
 - **[`custom-boards/`](custom-boards)** — KiCad designs for JLCPCB boards.
 

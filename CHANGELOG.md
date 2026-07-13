@@ -24,9 +24,11 @@
   as `0 mul` — multiplying the whole expression by zero.
 - **Fixed: every toast was invisible** (Bootstrap's `.toast:not(.show){display:none}` beat ours), so
   failed saves and errors passed silently. Bootstrap is gone; it was never used.
-- **Still missing vs the original tool:** the **macro editor** and the **quirk editor**. Both are
-  view-only in v2 — the data round-trips untouched, but to *change* them use the original tool or
-  Settings → Edit config JSON.
+- **Macro editor** — build a macro as a sequence of steps (several keys per step are pressed
+  together; an empty step is a pause), copy a macro to another slot, and fire it by mapping a key's
+  output to **Macro N**.
+- **Still missing vs the original tool:** only the **quirk editor** (view-only in v2 — the data
+  round-trips untouched; edit it via the original tool or Settings → Edit config JSON).
 
 ## Native combos — r2026-07-13
 

@@ -41,8 +41,9 @@
   };
 
   /* ---- APP <-> device JSON — delegated to translate.js (single source of truth).
-     configToJson exports the FULL config incl. additive combos[]/disabled_singles so
-     nothing is lost; applyJson folds a parsed config back into APP in place. ---- */
+     configToJson exports the FULL config: combos are real mappings on usage page
+     0xFFFB, plus the additive disabled_rows[] so switched-off rows survive a
+     round trip. applyJson folds a parsed config back into APP in place. ---- */
   function configToJson() {
     return JSON.stringify(window.HRX_TRANSLATE.appToConfig(APP), null, 4);
   }

@@ -8,78 +8,120 @@
   /* ---------------- SETTINGS ---------------- */
   const EMU = window.HRX_STATE.PROFILES; // index = our_descriptor_number
 
+  // Factory defaults. These are the FIRMWARE's own defaults (firmware/src/globals.cc),
+  // not invented ones — the reset buttons restore exactly what a freshly-flashed device uses.
+  const DEF = window.HRX_TRANSLATE.DEFAULTS;
+
+  // one setting -> how to reset it
+  const RESETTERS = {
+    emulatedDevice: (s) => { s.emulatedDevice = DEF.emulatedDevice; APP.device.profile = EMU[DEF.emulatedDevice]; },
+    tapHold: (s) => { s.tapHold = DEF.tapHold; },
+    scrollTimeout: (s) => { s.scrollTimeout = DEF.scrollTimeout; },
+    interval: (s) => { s.interval = DEF.interval; },
+    gpioDebounce: (s) => { s.gpioDebounce = DEF.gpioDebounce; },
+    macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
+    passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
+    combos: (s) => { s.combosEnabled = DEF.combosEnabled; },
+    flags: (s) => {
+      s.normalizeGamepad = DEF.normalizeGamepad;
+      s.gpioOutputMode = DEF.gpioOutputMode;
+      s.ignoreAuthDevInputs = DEF.ignoreAuthDevInputs;
+    },
+  };
+
+  const resetBtn = (key) =>
+    `<button class="btn-reset" data-reset="${key}" title="Reset to default">${ICON.undo}</button>`;
+
+  const card = (key, label, help, body, cls) => `
+    <div class="setting-card ${cls || ""}">
+      <div class="sc-head">
+        <div class="sc-label">${label}</div>
+        ${resetBtn(key)}
+      </div>
+      <div class="sc-help">${help}</div>
+      ${body}
+    </div>`;
+
+  const num = (id, val, min, max, unit) => `
+    <div class="sc-input-row">
+      <input class="input-hx" type="number" min="${min}" max="${max == null ? "" : max}" value="${val}"
+             id="${id}" style="width:90px;font-family:var(--font-mono)">
+      <span class="hint">${unit}</span>
+    </div>`;
+
+  const toggleRow = (attr, on, label) =>
+    `<div class="toggle-row"><span class="toggle ${on ? "on" : ""}" ${attr}></span><span>${label}</span></div>`;
+
   window.renderSettings = function (container) {
     const s = APP.settings;
     const emuOpts = EMU.map((e, i) => `<option value="${i}" ${i === s.emulatedDevice ? "selected" : ""}>${e}</option>`).join("");
-    const passToggles = s.passthrough.map((on, i) =>
-      `<div class="toggle-row" style="margin-bottom:7px"><span class="toggle ${on ? "on" : ""}" data-pass="${i}"></span><span>Layer ${i}</span></div>`
-    ).join("");
+    const passToggles = s.passthrough.map((on, i) => toggleRow(`data-pass="${i}"`, on, "Layer " + i)).join("");
+    const combosOn = s.combosEnabled !== false;
 
     container.innerHTML = `
     <div class="panel">
       <div class="panel-head">
-        <div><div class="panel-title">Settings</div><div class="panel-sub">Device-wide behavior. Advanced users can edit the raw config.</div></div>
-        <button class="btn-hx btn-sm" id="editJson" style="margin-left:auto">${ICON.file}<span>Edit config JSON</span></button>
+        <div><div class="panel-title">Settings</div><div class="panel-sub">Device-wide behavior. Every value can be reset to the firmware default.</div></div>
+        <button class="btn-hx btn-sm" id="resetAll" style="margin-left:auto">${ICON.undo}<span>Reset all</span></button>
+        <button class="btn-hx btn-sm" id="editJson">${ICON.file}<span>Edit config JSON</span></button>
       </div>
       <div class="panel-body">
       <div class="settings-grid">
-        <div class="setting-card">
-          <div class="sc-label">Emulated device type</div>
-          <div class="sc-help">What the remapper presents itself as to the host.</div>
-          <select class="select-hx" style="width:100%" id="emu">${emuOpts}</select>
-        </div>
 
-        <div class="setting-card highlight">
-          <div class="sc-label">Combo timing window <span class="section-tag" style="margin-left:6px">New</span></div>
-          <div class="sc-help">All keys in a combo must be pressed within this window to trigger it.</div>
-          <div style="display:flex;align-items:center;gap:9px">
-            <input class="input-hx" type="number" min="10" max="250" value="${s.comboWindow}" id="comboWin" style="width:90px;font-family:var(--font-mono)">
-            <span class="hint">milliseconds (10–250)</span>
-          </div>
-        </div>
+        ${card("emulatedDevice", "Emulated device type",
+          "What the remapper presents itself as to the host.",
+          `<select class="select-hx" style="width:100%" id="emu">${emuOpts}</select>`)}
 
-        <div class="setting-card">
-          <div class="sc-label">Tap-hold threshold</div>
-          <div class="sc-help">Global timing that separates a tap from a hold.</div>
-          <div style="display:flex;align-items:center;gap:9px">
-            <input class="input-hx" type="number" min="0" value="${s.tapHold}" id="tapHold" style="width:90px;font-family:var(--font-mono)">
-            <span class="hint">milliseconds</span>
-          </div>
-        </div>
+        ${card("combos", `Combos <span class="section-tag" style="margin-left:6px">New</span>`,
+          "Fire one output when several inputs are held together. Each combo row carries its own timing window and Consume switch — set them on the Mappings tab. Turn this off and no combo is sent to the device.",
+          `${toggleRow('data-combos="1"', combosOn, combosOn ? "Combos enabled" : "Combos disabled")}
+           <div class="hint" style="margin-top:6px">Requires VX firmware with combo support (r2026-07-13 or newer). On older firmware combos are simply ignored.</div>`,
+          "highlight")}
 
-        <div class="setting-card">
-          <div class="sc-label">Partial scroll timeout</div>
-          <div class="sc-help">How long partial scroll accumulation persists.</div>
-          <div style="display:flex;align-items:center;gap:9px">
-            <input class="input-hx" type="number" min="0" value="${s.scrollTimeout}" id="scrollTimeout" style="width:90px;font-family:var(--font-mono)">
-            <span class="hint">milliseconds</span>
-          </div>
-        </div>
+        ${card("tapHold", "Tap-hold threshold",
+          "Global timing that separates a tap from a hold.",
+          num("tapHold", s.tapHold, 0, null, `milliseconds (default ${DEF.tapHold})`))}
 
-        <div class="setting-card">
-          <div class="sc-label">Interval override</div>
-          <div class="sc-help">USB polling interval. 0 keeps the device default.</div>
-          <input class="input-hx" type="number" min="0" max="255" value="${s.interval}" id="interval" style="width:90px;font-family:var(--font-mono)">
-        </div>
+        ${card("scrollTimeout", "Partial scroll timeout",
+          "How long partial scroll accumulation persists.",
+          num("scrollTimeout", s.scrollTimeout, 0, null, `milliseconds (default ${DEF.scrollTimeout})`))}
 
-        <div class="setting-card">
-          <div class="sc-label">Unmapped passthrough</div>
-          <div class="sc-help">Pass keys with no mapping straight through, per layer.</div>
-          ${passToggles}
-        </div>
+        ${card("interval", "Interval override",
+          "USB polling interval. 0 keeps the device default.",
+          num("interval", s.interval, 0, 255, `0 = default`))}
+
+        ${card("gpioDebounce", "GPIO debounce time",
+          "Debounce window for buttons wired directly to GPIO pins.",
+          num("gpioDebounce", s.gpioDebounce == null ? DEF.gpioDebounce : s.gpioDebounce, 0, 255,
+              `milliseconds (default ${DEF.gpioDebounce})`))}
+
+        ${card("macroEntryDuration", "Macro entry duration",
+          "How long each step of a macro is held down.",
+          num("macroEntryDuration", s.macroEntryDuration == null ? DEF.macroEntryDuration : s.macroEntryDuration, 1, 255,
+              `milliseconds (default ${DEF.macroEntryDuration})`))}
+
+        ${card("passthrough", "Unmapped passthrough",
+          "Pass keys with no mapping straight through, per layer. All layers are on by default — switching a layer off silences every unmapped key on it.",
+          passToggles)}
+
+        ${card("flags", "Device flags",
+          "Lower-level switches. Leave these alone unless you know you need them.",
+          `${toggleRow('data-flag-set="normalizeGamepad"', s.normalizeGamepad !== false, "Normalize gamepad inputs")}
+           ${toggleRow('data-flag-set="gpioOutputMode"', !!s.gpioOutputMode, "GPIO output: open-drain (off = push-pull)")}
+           ${toggleRow('data-flag-set="ignoreAuthDevInputs"', !!s.ignoreAuthDevInputs, "Ignore auth device inputs")}`)}
+
       </div>
-    </div></div>`;
+      </div>
+    </div>`;
+
+    const rerender = () => window.HRX.rerenderTab();
 
     $("#emu", container).addEventListener("change", (e) => {
       s.emulatedDevice = +e.target.value;
       APP.device.profile = EMU[s.emulatedDevice] || ("Profile " + s.emulatedDevice);
       toast("Emulated device: " + EMU[s.emulatedDevice]);
     });
-    $("#comboWin", container).addEventListener("change", (e) => {
-      let v = Math.round(+e.target.value || 50);
-      v = Math.max(10, Math.min(250, v));
-      s.comboWindow = v; e.target.value = v;
-    });
+
     const numField = (id, key, min, max) => {
       const el = $("#" + id, container);
       if (!el) return;
@@ -93,7 +135,43 @@
     numField("tapHold", "tapHold", 0, null);
     numField("scrollTimeout", "scrollTimeout", 0, null);
     numField("interval", "interval", 0, 255);
-    $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => { const i = +t.dataset.pass; s.passthrough[i] = !s.passthrough[i]; t.classList.toggle("on"); }));
+    numField("gpioDebounce", "gpioDebounce", 0, 255);
+    numField("macroEntryDuration", "macroEntryDuration", 1, 255);
+
+    $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => {
+      const i = +t.dataset.pass;
+      s.passthrough[i] = !s.passthrough[i];
+      t.classList.toggle("on");
+    }));
+
+    const combosToggle = $('[data-combos]', container);
+    if (combosToggle) combosToggle.addEventListener("click", () => {
+      s.combosEnabled = s.combosEnabled === false;
+      toast(s.combosEnabled ? "Combos enabled" : "Combos disabled — combo rows will not be sent to the device");
+      rerender();
+    });
+
+    $$('[data-flag-set]', container).forEach((t) => t.addEventListener("click", () => {
+      const k = t.dataset.flagSet;
+      s[k] = !s[k];
+      t.classList.toggle("on");
+    }));
+
+    $$('[data-reset]', container).forEach((b) => b.addEventListener("click", () => {
+      const fn = RESETTERS[b.dataset.reset];
+      if (!fn) return;
+      fn(s);
+      rerender();
+      toast("Reset to default");
+    }));
+
+    const ra = $("#resetAll", container);
+    if (ra) ra.addEventListener("click", () => {
+      Object.values(RESETTERS).forEach((fn) => fn(s));
+      rerender();
+      toast("All settings reset to firmware defaults");
+    });
+
     const ej = $("#editJson", container);
     if (ej && window.openConfigJson) ej.addEventListener("click", () => window.openConfigJson());
   };

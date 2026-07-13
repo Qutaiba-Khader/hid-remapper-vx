@@ -52,6 +52,11 @@ function mk(inputs, output, opts = {}) {
     hold: !!opts.hold,
     scale: opts.scale != null ? opts.scale : 1.0,
     tint: opts.tint || null,
+    // combo-only (ignored on single-input rows): all inputs must go down within
+    // comboWindow ms (0 = no timing check); comboConsume stops the member keys from
+    // firing their own mappings while the combo is held.
+    comboWindow: opts.comboWindow == null ? 50 : opts.comboWindow,
+    comboConsume: opts.comboConsume !== false,
   };
 }
 
@@ -65,8 +70,6 @@ const APP = {
   },
   activeTab: "mappings",
   config: { title: "Living Room — Android TV" },
-  comboLayout: "wire", // wire | inline | stacked
-  groupByInput: false,
   groupDisabled: false,
   exprActive: 0, // which of the 8 expression slots is selected
   expressions: [
@@ -75,13 +78,20 @@ const APP = {
     "0x00010030 input_state -128 add dup abs 10 gt mul 0.025 mul", // dead-zone (stack trick)
     "", "", "", "", "",
   ],
+  // Defaults below are the FIRMWARE's own (firmware/src/globals.cc) — a fresh device
+  // behaves exactly like this. Do not "tidy" them; they are load-bearing.
   settings: {
-    emulatedDevice: 0, // our_descriptor_number (index into PROFILES)
-    tapHold: 200,
-    comboWindow: 50,
-    scrollTimeout: 100,
-    interval: 1,
-    passthrough: [true, false, false, false, false, false, false, false], // 8 layers
+    emulatedDevice: 0,       // our_descriptor_number
+    tapHold: 200,            // ms (tap_hold_threshold = 200000 µs)
+    scrollTimeout: 1000,     // ms (partial_scroll_timeout = 1000000 µs)
+    interval: 0,             // interval_override: 0 = no override
+    gpioDebounce: 5,         // ms
+    macroEntryDuration: 1,   // ms
+    passthrough: [true, true, true, true, true, true, true, true], // 0b11111111 — all 8 layers
+    combosEnabled: true,
+    normalizeGamepad: true,
+    gpioOutputMode: 0,       // 0 = push-pull, 1 = open-drain
+    ignoreAuthDevInputs: false,
   },
   mappings: [
     mk("0x00070052", "0x00070052"), // Cursor Up -> Arrow Up

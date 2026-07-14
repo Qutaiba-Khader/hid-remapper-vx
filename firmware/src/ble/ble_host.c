@@ -160,6 +160,45 @@ static void ble_clear_all_bonds(void);
 static void hog_start_scan(void);
 static void hog_start_connect(void);
 
+/* PAIRING MODE.
+ *
+ * Off by default. While off, the remapper ONLY reconnects to the device it already knows, and will
+ * not bond with anything else -- so an absent remote does not leave it open to the whole room.
+ *
+ * The config tool's "Pair new device" button opens a WINDOW: for PAIRING_WINDOW_MS we scan and will
+ * accept a new device. The window closes as soon as one is paired, or when it times out -- it never
+ * stays open. */
+#define PAIRING_WINDOW_MS 60000
+
+static bool pairing_mode = false;
+static btstack_timer_source_t pairing_timer;
+
+static void pairing_window_expired(btstack_timer_source_t * ts){
+    UNUSED(ts);
+    if (!pairing_mode) return;
+    pairing_mode = false;
+    printf("\nPairing window closed (nothing paired). Not pairable again until you ask.\n");
+    gap_stop_scan();
+    hog_start_connect();   // fall back to the remembered device, or go idle
+}
+
+static void ble_enter_pairing_mode(void){
+    pairing_mode = true;
+    printf("PAIRING MODE OPEN for %d s -- the next BLE HID device found will be paired.\n",
+           PAIRING_WINDOW_MS / 1000);
+    btstack_run_loop_remove_timer(&pairing_timer);
+    btstack_run_loop_set_timer(&pairing_timer, PAIRING_WINDOW_MS);
+    btstack_run_loop_set_timer_handler(&pairing_timer, &pairing_window_expired);
+    btstack_run_loop_add_timer(&pairing_timer);
+}
+
+static void ble_exit_pairing_mode(void){
+    if (!pairing_mode) return;
+    pairing_mode = false;
+    btstack_run_loop_remove_timer(&pairing_timer);
+    printf("Paired. Pairing mode closed.\n");
+}
+
 /* The config tool's "Pair new device" / "Clear bonds" buttons land on CORE 0 as config commands
    12/13. BTstack may only be touched from core 1, so core 0 raises a flag in the bridge and we
    pick it up here, inside BTstack's own run loop. Polled from the LED timer, which already ticks
@@ -187,7 +226,7 @@ static void ble_handle_core0_requests(void){
         app_state = W4_TIMEOUT_THEN_SCAN;
         gap_disconnect(connection_handle);
     } else {
-        hog_start_scan();
+        hog_start_connect();   // NOT _scan: that would make us pairable again
     }
 }
 
@@ -389,7 +428,7 @@ static void hog_discovery_timeout(btstack_timer_source_t * ts){
     if (connection_handle != HCI_CON_HANDLE_INVALID) {
         gap_disconnect(connection_handle);   // the disconnect handler restarts the scan
     } else {
-        hog_start_scan();
+        hog_start_connect();   // NOT _scan: that would make us pairable again
     }
 }
 
@@ -430,7 +469,7 @@ static void hog_connection_timeout(btstack_timer_source_t * ts){
     UNUSED(ts);
     printf("Connection timeout - back to scanning\n");
     gap_connect_cancel();
-    hog_start_scan();
+    hog_start_connect();   // NOT _scan: that would make us pairable again
 }
 
 
@@ -460,7 +499,10 @@ static void hog_reconnect_timeout(btstack_timer_source_t * ts){
             hog_connect();
             break;
         case W4_TIMEOUT_THEN_SCAN:
-            hog_start_scan();
+            // NOT hog_start_scan(): that would make us pairable again. Go through
+            // hog_start_connect(), which reconnects to the KNOWN device, and only scans if a
+            // pairing window is actually open.
+            hog_start_connect();
             break;
         default:
             break;
@@ -481,7 +523,26 @@ static void hog_start_connect(void){
             return;
         }
     }
-    // otherwise, scan for HID devices
+
+    /* NO BOND, AND WE ARE NOT IN PAIRING MODE -> DO NOTHING.
+     *
+     * This used to fall through to hog_start_scan(), which pairs with the FIRST BLE HID device it
+     * sees. That means the moment your remote is out of range or switched off, the remapper is wide
+     * open: it will bond with any keyboard, mouse or remote in the room -- a neighbour's included.
+     *
+     * A remapper must only ever accept a NEW device when its owner explicitly asks for one. So:
+     *   * a remembered device  -> reconnect to it, silently, forever (handled above);
+     *   * no remembered device -> sit idle. NOT scanning, NOT pairable.
+     * Pairing happens only when the config tool sends PAIR_NEW_DEVICE (or CLEAR_BONDS), which opens
+     * a short pairing WINDOW -- see ble_enter_pairing_mode(). */
+    if (!pairing_mode){
+        printf("No bonded device. Idle -- NOT pairable.\n");
+        printf("Press \"Pair new device\" in the config tool to pair one.\n");
+        app_state = W4_WORKING;   // slow blink, doing nothing
+        return;
+    }
+
+    // A pairing window IS open -- this is the one and only place we are allowed to go looking.
     hog_start_scan();
 }
 
@@ -491,7 +552,7 @@ static void hog_start_connect(void){
 static void handle_outgoing_connection_error(void){
     printf("Error occurred, disconnect and start over\n");
     gap_disconnect(connection_handle);
-    hog_start_scan();
+    hog_start_connect();   // NOT _scan: that would make us pairable again
 }
 
 /**
@@ -520,6 +581,7 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                 case ERROR_CODE_SUCCESS:
                     // discovery succeeded -- disarm the deadline, or it would delete a good bond
                     btstack_run_loop_remove_timer(&connection_timer);
+                    ble_exit_pairing_mode();   // we have our device; stop accepting new ones
                     printf("HID service client connected, found %d services\n",
                         gattservice_subevent_hid_service_connected_get_num_instances(packet));
 

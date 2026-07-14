@@ -12,6 +12,7 @@
 #include <hardware/flash.h>
 #include <hardware/gpio.h>
 #include <pico/bootrom.h>
+#include <pico/multicore.h>
 #include <pico/mutex.h>
 #include <pico/platform.h>
 #include <pico/stdio.h>
@@ -199,6 +200,11 @@ bool read_adc() {
 #endif
 
 void do_persist_config(uint8_t* buffer) {
+#ifdef BLE_HOST_ENABLED
+    // Core 1 is running BTstack FROM FLASH. Erasing flash disables XIP, so it would be fetching
+    // instructions from a chip that has stopped answering -- and die. Freeze it first.
+    multicore_lockout_start_blocking();
+#endif
 #if !PICO_COPY_TO_RAM
     uint32_t ints = save_and_disable_interrupts();
 #endif
@@ -206,6 +212,9 @@ void do_persist_config(uint8_t* buffer) {
     flash_range_program(CONFIG_OFFSET_IN_FLASH, buffer, PERSISTED_CONFIG_SIZE);
 #if !PICO_COPY_TO_RAM
     restore_interrupts(ints);
+#endif
+#ifdef BLE_HOST_ENABLED
+    multicore_lockout_end_blocking();
 #endif
 }
 

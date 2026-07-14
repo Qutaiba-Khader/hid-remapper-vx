@@ -56,6 +56,7 @@
 #include "btstack_config.h"
 #include "btstack.h"
 #include "pico/cyw43_arch.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "ble_host.h"
 #include "ble_bridge.h"
@@ -872,6 +873,10 @@ void ble_host_run(void) {
    a core to itself, leaving core 0 free to run hid-remapper's engine and the USB device stack.
    (shiomachisoft/picow_ble_usb_hid_bridge does the same, and it is proven on this hardware.) */
 void ble_host_main(void) {
+    // Let core 0 freeze us while it erases flash to save the config -- we execute FROM flash, so
+    // without this we would be fetching instructions from a chip that has stopped answering.
+    multicore_lockout_victim_init();
+
     ble_host_init();
     ble_host_run();
 }

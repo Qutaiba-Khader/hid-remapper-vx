@@ -689,7 +689,15 @@
       { file: "remapper_pico2.uf2", sub: "Single board (no LED)" },
       { file: "remapper_pico2_led.uf2", sub: "Single · onboard RGB LED", led: true },
     ] },
-    { name: "Bluetooth", chip: "nRF52840", files: [
+    /* Bluetooth = the INPUT DEVICE arrives over the air instead of on a USB cable. Pair a BLE
+       keyboard / mouse / TV remote and it runs through the full mapping engine, out to the PC as a
+       normal USB HID device.
+       The Pico W build is a different chip family (RP2040 + CYW43) but the same idea, so it belongs
+       in this group, not with the wired Pico builds — someone looking for "Bluetooth" will look
+       here. NOTE: the remapper is NOT pairable on its own; it only reconnects to the device it
+       already knows. "Pair new device" opens a 60-second window. */
+    { name: "Bluetooth", chip: "nRF52840 / Pico W", files: [
+      { file: "remapper_picow_ble.uf2", sub: "Pico W · Bluetooth LE input (RP2040 + CYW43)" },
       { file: "remapper_adafruit_feather_nrf52840.uf2", sub: "Adafruit Feather nRF52840" },
       { file: "remapper_seeed_xiao_nrf52840.uf2", sub: "Seeed XIAO nRF52840" },
     ] },

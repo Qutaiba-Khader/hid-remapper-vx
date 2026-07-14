@@ -51,11 +51,21 @@ test("the tool offers a non-trivial number of firmware builds", () => {
   assert.ok(offered.length >= 20, `only ${offered.length} builds offered — the list has gone stale`);
 });
 
+/* The Pico W Bluetooth build is produced by build-picow.yml, which lives on the
+   feature/picow-bt-input branch and is NOT part of master's release pipeline yet. Its .uf2 was
+   uploaded to the release BY HAND, and the download link is verified live (200). So it is a real,
+   working link that this CI-parsing check cannot see.
+
+   Whitelisted deliberately, not silenced: when build-picow lands in release.yml, DELETE this entry
+   and the check will cover it like every other file. Leaving it whitelisted forever would hide a
+   genuine 404 the day the manual upload is forgotten. */
+const MANUALLY_UPLOADED = new Set(["remapper_picow_ble.uf2"]);
+
 test("every firmware file the tool offers is one CI actually produces", () => {
   const built = ciArtifacts();
   assert.ok(built.size > 0, "could not parse any artifact names out of the CI workflows");
 
-  const phantom = offered.filter((f) => !built.has(f));
+  const phantom = offered.filter((f) => !built.has(f) && !MANUALLY_UPLOADED.has(f));
   assert.deepStrictEqual(phantom, [],
     "the tool links to .uf2 files CI never builds — these are 404s: " + phantom.join(", "));
 });

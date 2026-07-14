@@ -37,6 +37,13 @@ CI (`.github/workflows/build-rp2040.yml`) builds each variant in its own dir and
 | Two **RP2040-Zero** (dual, Side A + LED) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON` (make `remapper_dual_a`) | `remapper_rp2040_zero_dual_a_led.uf2` |
 | Custom JLCPCB boards | `PICO_BOARD=remapper_v7`/`v8`/… | `remapper_board*.uf2` |
 | nRF52840 (Bluetooth) | `build-nrf52.yml` | see `BLUETOOTH.md` |
+| **Pico W — Bluetooth INPUT** | `PICO_BOARD=pico_w cmake ..`, `make remapper_picow_ble` (`build-picow.yml`) | `remapper_picow_ble.uf2` — see [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) |
+
+> **`remapper_picow_ble.uf2` is NOT built by master's release pipeline yet.** It lives on the branch
+> `feature/picow-bt-input` and its `.uf2` was **uploaded by hand** to the `r2026-07-06` release. The
+> web tool links it, so the file must stay on `latest`. `config-tool-web-v2/tests/firmware-links.test.js`
+> whitelists it explicitly — **delete that whitelist entry the day `build-picow` joins `release.yml`**,
+> or a forgotten manual upload becomes a silent 404.
 
 There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`. There is no combined dual image for the RP2040-Zero (it doesn't expose SWD).
 

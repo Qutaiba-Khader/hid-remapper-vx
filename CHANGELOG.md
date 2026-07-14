@@ -1,5 +1,32 @@
 # Changelog
 
+## Bluetooth input on a Pico W (2026-07-14)
+
+A **Pico W** can now take its input over **Bluetooth LE** instead of a USB cable. Pair a BLE keyboard,
+mouse or TV remote and it runs through the **full mapping engine** — layers, macros, expressions,
+quirks, every output profile — and out to the PC as an ordinary USB HID device. The PC sees a
+**HID Remapper**, not your remote.
+
+Download **`remapper_picow_ble.uf2`** from the config tool (**Actions → Bluetooth**). Full reference:
+[`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md).
+
+- BTstack owns **core 1**; hid-remapper's engine + TinyUSB device own **core 0**. They meet only in a
+  small lock-free bridge. A BLE device enters the engine through the *same two calls* a wired USB
+  device makes, so everything downstream is identical.
+- **Auto-connects to its paired device, always**, and once paired it will never bond with anything
+  else. *Pair new device* opens a 3-minute window.
+- The build has no serial output, so the **LED is the status**: solid = connected, fast = connecting,
+  **double blink = pairing window open**, slow = idle.
+
+**Source lives on `feature/picow-bt-input` and is not merged.** The `.uf2` was uploaded by hand to the
+`r2026-07-06` release; `build-picow` is not in the release pipeline yet.
+
+The one that will waste your evening: **a BLE HID device serves its HID service to ONE bonded host.**
+If the remote is still paired to a TV or a phone it will accept the connection and then refuse to
+talk. Re-pair the remote. (Verified the hard way — a third-party bridge that is known to work failed
+on the same remote in the same way.) And **never** clear the bond on our side only: the remote keeps
+its key, and the half-bond deadlock that follows is unrecoverable in firmware.
+
 ## Combos removed (2026-07-13)
 
 The native combo feature (usage page `0xFFFB`) has been **removed entirely** — from the firmware,

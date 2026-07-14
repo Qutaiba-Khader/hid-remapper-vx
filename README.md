@@ -23,6 +23,27 @@ Use Chrome or a Chromium-based browser (WebHID required).
 - **Improved UX** for Sticky/Tap/Hold with clear help text and tooltips
 - **Android TV HID descriptor** (firmware) with Consumer Control outputs for all standard remote keys
 
+## Bluetooth input (Pico W)
+
+A **Pico W** can take its input over **Bluetooth LE** instead of a USB cable: pair a BLE keyboard,
+mouse or TV remote, and it runs through the **full mapping engine** (layers, macros, expressions,
+quirks) and out to the PC as an ordinary USB HID device. The PC sees a **HID Remapper**, not your
+remote — which is the whole point.
+
+Download **`remapper_picow_ble.uf2`** from the config tool's **Actions → Bluetooth** section.
+
+- **Auto-connects to its paired device, always** — and once paired it will **never** bond with
+  anything else. A remote that is switched off or out of range does not leave it open to the room.
+- **Not paired yet?** It is pairable — that is first-time setup.
+- **Pair a different device:** *Pair new device* in the config tool opens a **3-minute** window.
+- The build has **no serial output** (it is a HID device), so the onboard **LED is the status**:
+  **solid** = connected · **fast blink** = connecting · **double blink** = pairing window open ·
+  **slow blink** = idle.
+
+A **BLE HID device serves its HID service to ONE bonded host.** If your remote is still paired to a
+TV or a phone, it will accept the connection and then refuse to talk — re-pair it. That is a property
+of the remote, not a bug in the firmware.
+
 ## How It Works
 
 This is a USB HID remapper that sits between your remote's USB receiver and the Android TV device. It intercepts HID input events and remaps them according to your configuration — entirely in hardware, no host software needed.

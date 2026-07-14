@@ -257,9 +257,9 @@ static void led_timer_handler(btstack_timer_source_t * ts){
             on = ((tick % 10) == 0) || ((tick % 10) == 2);
             break;
         default:
-            // OFF = idle. Not scanning, not pairable. Waiting for you to ask.
-            // (A remembered remote that is simply out of range also sits here between retries.)
-            on = 0;
+            // SLOW BLINK = idle / retrying a bonded remote that is not answering (switched off,
+            // out of range). Not an error, and NOT a state where we would pair with anything else.
+            on = (tick / 5) & 1;
             break;
     }
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, on);
@@ -538,25 +538,25 @@ static void hog_start_connect(void){
         }
     }
 
-    /* NO BOND, AND WE ARE NOT IN PAIRING MODE -> DO NOTHING.
+    /* NO BOND -> we are pairable. This is first-time setup, and it is the ONLY time we go looking
+       for a device we do not already know.
      *
-     * This used to fall through to hog_start_scan(), which pairs with the FIRST BLE HID device it
-     * sees. That means the moment your remote is out of range or switched off, the remapper is wide
-     * open: it will bond with any keyboard, mouse or remote in the room -- a neighbour's included.
+     * The security question the owner asked was: "if the remote disconnects, is it open to anything
+     * in the room?" The answer is NO -- and the reason is the branch ABOVE, not this one. Once a
+     * device is bonded we ONLY ever reconnect to that device; a remote that is switched off or out
+     * of range leaves the bond intact, so we sit there retrying it and will not touch anything else.
      *
-     * A remapper must only ever accept a NEW device when its owner explicitly asks for one. So:
-     *   * a remembered device  -> reconnect to it, silently, forever (handled above);
-     *   * no remembered device -> sit idle. NOT scanning, NOT pairable.
-     * Pairing happens only when the config tool sends PAIR_NEW_DEVICE (or CLEAR_BONDS), which opens
-     * a short pairing WINDOW -- see ble_enter_pairing_mode(). */
-    if (!pairing_mode){
-        printf("No bonded device. Idle -- NOT pairable.\n");
-        printf("Press \"Pair new device\" in the config tool to pair one.\n");
-        app_state = W4_WORKING;   // slow blink, doing nothing
-        return;
+     * An EARLIER version of this made a bond-less device sit idle and refuse to scan at all. That
+     * bought no safety whatsoever (a device with no bond has nothing to protect) and it broke the
+     * one thing that worked: a fresh remapper could never pair with anything, ever.
+     *
+     * So the rule is simply:
+     *   bonded      -> reconnect to that device, and ONLY that device. Never pair with anything.
+     *   not bonded  -> pairable (first-time setup, or right after "Pair new device"/"Clear bonds").
+     */
+    if (!pairing_mode) {
+        printf("No bonded device -- looking for one to pair with (first-time setup).\n");
     }
-
-    // A pairing window IS open -- this is the one and only place we are allowed to go looking.
     hog_start_scan();
 }
 

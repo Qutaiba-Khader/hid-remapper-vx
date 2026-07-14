@@ -16,7 +16,9 @@ A fork of [jfedor2/hid-remapper](https://github.com/jfedor2/hid-remapper) (upstr
 1. **Never change the stock builds.** Every new board or feature MUST be **opt-in** — a `option(... OFF)` in `firmware/CMakeLists.txt` or a new board header — so a plain `cmake ..` build and every existing `.uf2` stay **byte-identical** to upstream. Precedents: `RGB_LED_ENABLED`, `ZERO_DUAL_SERIAL`. This is how we avoid corrupting other people's/boards' firmware.
 2. **Don't bump `CONFIG_VERSION`** (`firmware/src/config.cc`, currently **18**) unless the persisted config format truly changes — the firmware and web tool must agree. Prefer encoding new features without a format change (e.g. the RGB LED color is packed into a usage on page `0xFFFA`, no version bump).
 3. **Firmware does not build on this machine (Windows, no Pico SDK).** `.uf2` files are produced by GitHub Actions. **Verify via CI, not locally.** Watch the run and read the "Verify artifacts" step.
-4. **Keep firmware filenames identical everywhere** — the CI `mv` step, the web-tool download buttons (`config-tool-web/index.html`), README/HARDWARE/RP2040-ZERO docs, and the `releases/latest/download/...` URLs. One typo = a 404 download.
+4. **Keep firmware filenames identical everywhere** — the CI `mv` step, the web-tool download buttons (`config-tool-web/index.html` **and** `config-tool-web-v2/js/tabs.js`), README/HARDWARE/RP2040-ZERO docs, and the `releases/latest/download/...` URLs. One typo = a 404 download. (`config-tool-web-v2/tests/firmware-links.test.js` checks the v2 list against what CI actually builds.)
+7. **A web-tool deploy is invisible until you bump the cache stamp.** GitHub Pages serves `index.html` and the assets with a ~10-minute cache, so the browser keeps running the previous build. **Bump `?v=<date>` on every asset in `config-tool-web-v2/index.html` whenever you change any css/js**, and verify a deploy with `curl` against the served files — never by looking at the browser (you will be looking at a cached page and think nothing shipped).
+8. **Never trust the UI mock.** `config-tool-web-v2/` came from a Claude Design mock that shipped a fake config, fake macros, fake "example" presets that added BLANK mappings, an expression palette that injected hardcoded usages, and Bootstrap — whose `.toast:not(.show){display:none}` made **every toast in the tool invisible**, so failed saves passed silently. `config-tool-web-v2/tests/no-dummy-data.test.js` + `ui-guards.test.js` keep it out.
 5. **Web UI: readable text only.** The config tool is a dark theme; keep text readable (the owner dislikes low-contrast grey). Match the existing `text-muted` sublabel style only where sibling elements already use it.
 6. **Don't reproduce a diagram/pin claim from memory** — verify pin positions/labels against the board photo or datasheet, and usage-page constants against the source (below).
 
@@ -35,6 +37,13 @@ CI (`.github/workflows/build-rp2040.yml`) builds each variant in its own dir and
 | Two **RP2040-Zero** (dual, Side A + LED) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON` (make `remapper_dual_a`) | `remapper_rp2040_zero_dual_a_led.uf2` |
 | Custom JLCPCB boards | `PICO_BOARD=remapper_v7`/`v8`/… | `remapper_board*.uf2` |
 | nRF52840 (Bluetooth) | `build-nrf52.yml` | see `BLUETOOTH.md` |
+| **Pico W — Bluetooth INPUT** | `PICO_BOARD=pico_w cmake ..`, `make remapper_picow_ble` (`build-picow.yml`) | `remapper_picow_ble.uf2` — see [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) |
+
+> **`remapper_picow_ble.uf2` is NOT built by master's release pipeline yet.** It lives on the branch
+> `feature/picow-bt-input` and its `.uf2` was **uploaded by hand** to the `r2026-07-06` release. The
+> web tool links it, so the file must stay on `latest`. `config-tool-web-v2/tests/firmware-links.test.js`
+> whitelists it explicitly — **delete that whitelist entry the day `build-picow` joins `release.yml`**,
+> or a forgotten manual upload becomes a silent 404.
 
 There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`. There is no combined dual image for the RP2040-Zero (it doesn't expose SWD).
 
@@ -50,7 +59,7 @@ There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`
 
 A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/src/remapper.h` / `remapper.cc` / `main.cc` before claiming one is free):
 
-`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color). **Next free: `0xFFFB`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
+`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color) **Next free: `0xFFFB`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
 
 ## Repo layout
 
@@ -59,7 +68,12 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
   - Shared: [`remapper.cc`](firmware/src/remapper.cc) (mapping engine), [`config.cc`](firmware/src/config.cc) (persisted config + commands), [`main.cc`](firmware/src/main.cc), [`serial.cc`](firmware/src/serial.cc) (dual UART link).
   - Board headers: [`firmware/src/boards/`](firmware/src/boards)`*.h` (selected by `PICO_BOARD`).
   - [`firmware/CMakeLists.txt`](firmware/CMakeLists.txt) — targets + the opt-in feature options.
-- **[`config-tool-web/`](config-tool-web)** — the WebHID config tool. [`index.html`](config-tool-web/index.html) (UI + firmware download buttons), [`code.js`](config-tool-web/code.js), [`usages.js`](config-tool-web/usages.js). Served via **GitHub Pages** (root `index.html` redirects to `config-tool-web/`).
+- **[`config-tool-web/`](config-tool-web)** — the ORIGINAL WebHID config tool (v1), still live and still the reference for protocol behavior. [`index.html`](config-tool-web/index.html) (UI + firmware download buttons), [`code.js`](config-tool-web/code.js), [`usages.js`](config-tool-web/usages.js). Served via **GitHub Pages** (root `index.html` redirects to `config-tool-web/`).
+- **[`config-tool-web-v2/`](config-tool-web-v2)** — the REDESIGNED tool (v2): vanilla JS, no build step, per-field reset-to-default, live monitor. Live at `…/config-tool-web-v2/`.
+  - `js/device.js` = WebHID + the 32-byte binary protocol (ported from v1's `code.js`).
+  - `js/translate.js` = the APP⇄device-config boundary. **All unit conversions live here**: ms↔µs, `scale`↔`scaling` (×1000), and **expression constants↔fixed point (×1000)** — get that last one wrong and `0.05 mul` is written to the device as `0 mul`.
+  - Tests: `cd config-tool-web-v2 && node --test tests/*.test.js` (**100**, no deps). They include a full end-to-end flow against a fake device (`flow.test.js`), a firmware↔web contract check that reads the firmware source (`contract.test.js`), and guards against the mock's fake data creeping back.
+  - **Feature parity with v1 is COMPLETE** (macros, quirks, expressions, hub ports, device-reported usages, layer-forcing safety, monitor, JSON, firmware downloads). v2 additionally has per-field reset-to-default and per-row enable/disable.
 - **[`.github/workflows/`](.github/workflows)** — [`build-rp2040.yml`](.github/workflows/build-rp2040.yml), [`build-nrf52.yml`](.github/workflows/build-nrf52.yml), [`release.yml`](.github/workflows/release.yml).
 - **[`custom-boards/`](custom-boards)** — KiCad designs for JLCPCB boards.
 

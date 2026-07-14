@@ -12,18 +12,37 @@ Use Chrome or a Chromium-based browser (WebHID required).
 
 - **Dark theme UI** optimized for readability
 - **Categorized Android TV usages** (Power, Navigation, Media, Volume, Apps, System)
-- **Quick Actions tab** with grid-button shortcuts for Android TV, Browser, and Windows key combos
 - **Example Configs** as color-coded categorized cards (Keyboard, Mouse, Macros, Expressions, Windows)
 - **Expression Builder** - visual block-based editor (powered by Google Blockly) for building RPN expressions without writing code
   - Categorized toolbox: Input, Logic, Math, Memory, Time, Trig/Advanced
   - Unified input picker with all mouse, keyboard, and gamepad inputs in one dropdown
-  - 7 starter templates (Button Hold, Scale Mouse, Invert Axis, If/Then/Else, Clamp, Combo, Threshold)
   - RPN parser that loads existing expressions back into visual blocks when clicking Edit
   - Close confirmation dialog to prevent losing work
 - **Expression UX** - snippets dropdown, copy/paste buttons, and Edit button linking to the visual builder
 - **Drag-and-drop reorder** for mappings
 - **Improved UX** for Sticky/Tap/Hold with clear help text and tooltips
 - **Android TV HID descriptor** (firmware) with Consumer Control outputs for all standard remote keys
+
+## Bluetooth input (Pico W)
+
+A **Pico W** can take its input over **Bluetooth LE** instead of a USB cable: pair a BLE keyboard,
+mouse or TV remote, and it runs through the **full mapping engine** (layers, macros, expressions,
+quirks) and out to the PC as an ordinary USB HID device. The PC sees a **HID Remapper**, not your
+remote — which is the whole point.
+
+Download **`remapper_picow_ble.uf2`** from the config tool's **Actions → Bluetooth** section.
+
+- **Auto-connects to its paired device, always** — and once paired it will **never** bond with
+  anything else. A remote that is switched off or out of range does not leave it open to the room.
+- **Not paired yet?** It is pairable — that is first-time setup.
+- **Pair a different device:** *Pair new device* in the config tool opens a **3-minute** window.
+- The build has **no serial output** (it is a HID device), so the onboard **LED is the status**:
+  **solid** = connected · **fast blink** = connecting · **double blink** = pairing window open ·
+  **slow blink** = idle.
+
+A **BLE HID device serves its HID service to ONE bonded host.** If your remote is still paired to a
+TV or a phone, it will accept the connection and then refuse to talk — re-pair it. That is a property
+of the remote, not a bug in the firmware.
 
 ## How It Works
 

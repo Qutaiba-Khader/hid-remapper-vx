@@ -2,6 +2,9 @@
 
 #include <string.h>
 
+#include "hardware/sync.h"
+#include "pico/sync.h"
+
 /* A power-of-two SPSC ring. Core 1 (BLE) writes, core 0 (engine) reads.
  *
  * No mutex on purpose: core 1 is BTstack's run loop and it must never block -- stall it and the
@@ -112,27 +115,66 @@ uint32_t ble_bridge_dropped(void) {
     return dropped;
 }
 
-/* ================= core 0 <-> core 1 requests + status ================= */
+/* ================= core 0 <-> core 1 requests + status =================
+ *
+ * These need a REAL lock, unlike the report ring.
+ *
+ * The ring is safe lock-free because it is single-producer / single-consumer and each side only
+ * ever advances its own index. `requests` is not: core 0 does `requests |= x` and core 1 does
+ * `requests &= ~x` -- both READ-MODIFY-WRITE the same word. The RP2040 is a Cortex-M0+ with NO
+ * atomics (no LDREX/STREX), so those can interleave and a request is LOST, not merely delayed.
+ * A "Pair new device" button press that silently does nothing is exactly the kind of bug you
+ * never manage to reproduce.
+ *
+ * So: a hardware spinlock. It is held for a handful of instructions, on a path that runs at most
+ * a few times a second.
+ */
 
 static volatile uint32_t requests;   // core 0 sets bits, core 1 clears them
 static volatile ble_status_t status; // core 1 writes, core 0 reads
+static spin_lock_t* req_lock = NULL;
+
+void ble_bridge_init(void) {
+    if (req_lock == NULL) {
+        req_lock = spin_lock_init(spin_lock_claim_unused(true));
+    }
+}
 
 void ble_bridge_request(uint32_t req) {
-    requests |= req;  // core 0 only sets; core 1 only clears. A lost race just delays by 100ms.
+    if (req_lock == NULL) {
+        return;  // called before init: impossible in practice, but never fault
+    }
+    uint32_t save = spin_lock_blocking(req_lock);
+    requests |= req;
+    spin_unlock(req_lock, save);
 }
 
 uint32_t ble_bridge_take_requests(void) {
-    uint32_t r = requests;
-    if (r != 0) {
-        requests &= ~r;
+    if (req_lock == NULL) {
+        return 0;
     }
+    uint32_t save = spin_lock_blocking(req_lock);
+    uint32_t r = requests;
+    requests = 0;
+    spin_unlock(req_lock, save);
     return r;
 }
 
+/* The status block is bigger than a word, so a plain memcpy across cores can TEAR -- core 0 could
+   read half of an old address and half of a new one. Same lock. */
 void ble_bridge_set_status(const ble_status_t* st) {
+    if (req_lock == NULL) return;
+    uint32_t save = spin_lock_blocking(req_lock);
     memcpy((void*) &status, st, sizeof(ble_status_t));
+    spin_unlock(req_lock, save);
 }
 
 void ble_bridge_get_status(ble_status_t* out) {
+    if (req_lock == NULL) {
+        memset(out, 0, sizeof(ble_status_t));
+        return;
+    }
+    uint32_t save = spin_lock_blocking(req_lock);
     memcpy(out, (const void*) &status, sizeof(ble_status_t));
+    spin_unlock(req_lock, save);
 }

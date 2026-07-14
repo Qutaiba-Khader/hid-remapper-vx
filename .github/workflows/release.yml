@@ -7,8 +7,12 @@ jobs:
     uses: ./.github/workflows/build-nrf52.yml
   build-rp2040:
     uses: ./.github/workflows/build-rp2040.yml
+  # Pico W Bluetooth remapper. ADDITIVE: it produces new .uf2 files and does not touch any
+  # existing one -- every other board is built by the two workflows above, unchanged.
+  build-picow:
+    uses: ./.github/workflows/build-picow.yml
   create-release:
-    needs: [ build-nrf52, build-rp2040 ]
+    needs: [ build-nrf52, build-rp2040, build-picow ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v8

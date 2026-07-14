@@ -8,6 +8,7 @@ on:
     paths:
       - 'firmware/**'
       - '.github/workflows/build-picow.yml'
+  workflow_call:      # so release.yml can build the Pico W into a release
   workflow_dispatch:
     inputs:
       ble_target_addr:

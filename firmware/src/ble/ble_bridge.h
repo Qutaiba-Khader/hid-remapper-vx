@@ -23,6 +23,9 @@ extern "C" {
 
 #define BLE_BRIDGE_MAX_REPORT_LEN 64
 
+// Must be called on core 0 BEFORE core 1 is launched (claims the spinlock the request channel uses).
+void ble_bridge_init(void);
+
 /* ---- core 1 (BLE) ---- */
 
 // Hand over the BLE device's HID REPORT DESCRIPTOR. Latched; core 0 picks it up once.

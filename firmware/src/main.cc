@@ -12,7 +12,6 @@
 #include <hardware/flash.h>
 #include <hardware/gpio.h>
 #include <pico/bootrom.h>
-#include <pico/multicore.h>
 #include <pico/mutex.h>
 #include <pico/platform.h>
 #include <pico/stdio.h>
@@ -37,6 +36,9 @@
 #endif
 
 #ifdef BLE_HOST_ENABLED
+// Guarded, so a non-Bluetooth build pulls in nothing extra and stays byte-identical.
+#include <pico/multicore.h>
+
 #include "ble_bridge.h"
 #endif
 

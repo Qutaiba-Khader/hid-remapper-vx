@@ -85,6 +85,9 @@ void extra_init() {
      */
     multicore_lockout_victim_init();
 
+    // Claim the spinlock the core0<->core1 request channel uses. MUST happen before core 1 exists.
+    ble_bridge_init();
+
     // BTstack owns core 1 from here on. Nothing else may touch it.
     multicore_launch_core1(ble_host_main);
 }

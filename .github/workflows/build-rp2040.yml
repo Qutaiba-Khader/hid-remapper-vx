@@ -1,11 +1,6 @@
 name: build-rp2040
 on:
   push:
-    # feature/picow-bt-input only touches firmware/src/ble/**, which neither of these builds
-    # compiles -- they were firing on every BLE commit for nothing. (This exclusion exists ONLY
-    # on that branch; master's copy of this workflow is unchanged.)
-    branches-ignore:
-      - 'feature/picow-bt-input'
     paths:
       - 'firmware/**'
       - '.github/workflows/build-rp2040.yml'

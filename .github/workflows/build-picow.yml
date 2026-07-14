@@ -3,13 +3,10 @@ on:
   push:
     branches:
       - feature/picow-bt-input
+    # The BLE remapper now links the WHOLE engine (main.cc, remapper.cc, tinyusb_stuff.cc, ...),
+    # so a narrow file list silently stopped triggering builds. Watch all of firmware/.
     paths:
-      - 'firmware/src/remapper_picow.cc'
-      - 'firmware/src/bt_host.c'
-      - 'firmware/src/bt_host.h'
-      - 'firmware/src/btstack_config.h'
-      - 'firmware/src/ble/**'
-      - 'firmware/CMakeLists.txt'
+      - 'firmware/**'
       - '.github/workflows/build-picow.yml'
   workflow_dispatch:
     inputs:

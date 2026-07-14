@@ -168,7 +168,7 @@ static void hog_start_connect(void);
  * The config tool's "Pair new device" button opens a WINDOW: for PAIRING_WINDOW_MS we scan and will
  * accept a new device. The window closes as soon as one is paired, or when it times out -- it never
  * stays open. */
-#define PAIRING_WINDOW_MS 60000
+#define PAIRING_WINDOW_MS 180000   // 3 minutes: long enough to go and wake the remote
 
 static bool pairing_mode = false;
 static btstack_timer_source_t pairing_timer;
@@ -237,16 +237,30 @@ static void led_timer_handler(btstack_timer_source_t * ts){
 
     ble_handle_core0_requests();
 
+    /* THE LED IS THE ONLY STATUS CHANNEL ON THIS BUILD (no USB serial -- we are a HID device), so
+       every state MUST look different. It used to lump "idle, not pairable" and "scanning for your
+       remote" into the same slow blink, which made it impossible to tell whether a pairing request
+       had even arrived. */
     int on;
     switch (app_state){
         case READY:
-            on = 1; break;                       // solid = connected, receiving
+            on = 1;                              // SOLID           = connected, reports flowing
+            break;
         case W4_CONNECTED:
         case W4_ENCRYPTED:
         case W4_HID_CLIENT_CONNECTED:
-            on = tick & 1; break;                // fast blink (~5 Hz) = connecting/pairing
+            on = tick & 1;                       // FAST BLINK      = connecting / pairing
+            break;
+        case W4_HID_DEVICE_FOUND:
+            // DOUBLE BLINK ("blink-blink ... pause") = PAIRING WINDOW OPEN, actively looking.
+            // Unmistakable, and it tells you the button press really did land.
+            on = ((tick % 10) == 0) || ((tick % 10) == 2);
+            break;
         default:
-            on = (tick / 5) & 1; break;          // slow blink (~1 Hz) = scanning/idle
+            // OFF = idle. Not scanning, not pairable. Waiting for you to ask.
+            // (A remembered remote that is simply out of range also sits here between retries.)
+            on = 0;
+            break;
     }
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, on);
     btstack_run_loop_set_timer(ts, 100);

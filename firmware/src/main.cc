@@ -23,6 +23,9 @@
 #include "descriptor_parser.h"
 #include "globals.h"
 #include "i2c.h"
+#ifdef IR_OUTPUT_ENABLED
+#include "ir_output.h"
+#endif
 #include "mcp4651.h"
 #include "our_descriptor.h"
 #include "platform.h"
@@ -349,6 +352,11 @@ int main() {
     adc_pins_init();
 #endif
     tick_init();
+#ifdef IR_OUTPUT_ENABLED
+    // Set the default IR pin BEFORE load_config/set_mapping_from_config, so a set-pin mapping in
+    // the config overrides it (and, with no such mapping, IR stays on the default pin).
+    ir_output_init();
+#endif
     load_config(FLASH_CONFIG_IN_MEMORY);
     our_descriptor = &our_descriptors[our_descriptor_number];
     parse_our_descriptor();

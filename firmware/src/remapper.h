@@ -7,6 +7,8 @@
 #define DIGIPOT_USAGE_PAGE 0xFFF60000
 #define DPAD_USAGE_PAGE 0xFFF90000
 #define RGB_LED_USAGE_PAGE 0xFFFA0000  // low 16 bits = RGB565 color
+#define IR_USAGE_PAGE 0xFFFB0000       // low 16 bits = IR protocol id (see ir_output.h)
+#define IR_CONFIG_PIN_USAGE (IR_USAGE_PAGE | 0xFF)  // set-pin pseudo-mapping; scaling = GPIO pin
 
 #define DPAD_USAGE_LEFT (DPAD_USAGE_PAGE | 1)
 #define DPAD_USAGE_RIGHT (DPAD_USAGE_PAGE | 2)

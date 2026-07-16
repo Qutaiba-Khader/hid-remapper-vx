@@ -116,6 +116,19 @@ if(RGB_LED_ENABLED)
     endif()
 endif()
 
+# --- IR (infrared) output (opt-in). Enabled only with -DIR_OUTPUT_ENABLED=ON, so default builds
+# stay byte-identical to upstream. Turns a mapped button into a TV/AV remote key (NEC + Samsung).
+# The 38 kHz carrier is generated with a PWM slice + a hardware alarm (NOT PIO), so it never
+# contends with the PIO-USB host or the WS2812 RGB LED. The IR LED pin is chosen in the web tool
+# (default GP15); see the reserved-pin guard in src/ir_output.cc. This applies to the `remapper`
+# target (wired single, and the Pico W USB build); the Pico W BLE target is wired separately. ---
+option(IR_OUTPUT_ENABLED "IR (infrared) output on a configurable GPIO (PWM carrier; NEC + Samsung)" OFF)
+if(IR_OUTPUT_ENABLED)
+    target_sources(remapper PRIVATE src/ir_output.cc)
+    target_compile_definitions(remapper PUBLIC IR_OUTPUT_ENABLED)
+    target_link_libraries(remapper hardware_pwm)
+endif()
+
 
 add_executable(remapper_dual_a
     src/main.cc
@@ -400,6 +413,14 @@ if(PICO_BOARD STREQUAL "pico_w")
         pico_btstack_cyw43
         pico_btstack_ble
     )
+    # IR output on the BLE build (opt-in, same -DIR_OUTPUT_ENABLED). This is the SofaBaton
+    # BT-remote -> IR-blaster path. On this build there is no PIO-USB host, so PIO is wide open,
+    # but IR still uses PWM (never PIO) so it is board-agnostic. hardware_dma is already linked.
+    if(IR_OUTPUT_ENABLED)
+        target_sources(remapper_picow_ble PRIVATE src/ir_output.cc)
+        target_compile_definitions(remapper_picow_ble PRIVATE IR_OUTPUT_ENABLED)
+        target_link_libraries(remapper_picow_ble hardware_pwm)
+    endif()
     # This SDK's pico_btstack_ble doesn't bundle the HID-over-GATT service
     # client, so compile it (and its base helper) into the target directly.
     target_sources(remapper_picow_ble PRIVATE

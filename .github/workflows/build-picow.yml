@@ -1,0 +1,61 @@
+name: build-picow
+on:
+  push:
+    branches:
+      - feature/picow-bt-input
+    # The BLE remapper now links the WHOLE engine (main.cc, remapper.cc, tinyusb_stuff.cc, ...),
+    # so a narrow file list silently stopped triggering builds. Watch all of firmware/.
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/build-picow.yml'
+  workflow_call:      # so release.yml can build the Pico W into a release
+  workflow_dispatch:
+    inputs:
+      ble_target_addr:
+        description: 'Connect ONLY to this BLE MAC (blank = any device advertising the HID UUID). Not device-specific: this is the same knob the web tool will drive once you can pick from a scan list.'
+        required: false
+        default: ''
+      ble_clear_bonds:
+        description: 'Wipe all BLE bonds on every boot, so PAIRING is tested from scratch instead of silently re-encrypting a remembered device.'
+        required: false
+        type: boolean
+        default: false
+defaults:
+  run:
+    shell: bash --noprofile --norc -x -e -o pipefail {0}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # pico-sdk's btstack + cyw43 are nested submodules
+      - name: Install compiler and tools
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord
+      # Two Pico W firmwares, distinguished by where the INPUT comes from:
+      #   remapper_picow_usb.uf2 = the standard wired remapper built for pico_w (USB device -> engine
+      #                            -> USB HID out). The `remapper` target renamed on mv.
+      #   remapper_picow_ble.uf2 = the Bluetooth remapper (BLE HID host -> engine -> USB HID out).
+      - name: Build Pico W USB + BLE remappers
+        working-directory: ./firmware
+        run: |
+          mkdir build-picow
+          cd build-picow
+          PICO_BOARD=pico_w cmake .. -DBLE_TARGET_ADDR="${{ github.event.inputs.ble_target_addr }}" -DBLE_CLEAR_BONDS=${{ github.event.inputs.ble_clear_bonds == 'true' && 'ON' || 'OFF' }}
+          make -j$(nproc) remapper remapper_picow_ble
+          cd ..
+          mkdir -p artifacts
+          mv build-picow/remapper.uf2 artifacts/remapper_picow_usb.uf2
+          mv build-picow/remapper_picow_ble.uf2 artifacts/remapper_picow_ble.uf2
+      - name: Verify artifacts
+        run: |
+          ls -la firmware/artifacts/
+          test -f firmware/artifacts/remapper_picow_usb.uf2
+          test -f firmware/artifacts/remapper_picow_ble.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remapper_picow-uf2
+          path: firmware/artifacts/

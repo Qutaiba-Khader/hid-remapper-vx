@@ -35,6 +35,13 @@
 #include "ws2812.pio.h"
 #endif
 
+#ifdef BLE_HOST_ENABLED
+// Guarded, so a non-Bluetooth build pulls in nothing extra and stays byte-identical.
+#include <pico/multicore.h>
+
+#include "ble_bridge.h"
+#endif
+
 // RP2350 UF2s wipe the last sector of flash every time
 // because of RP2350-E10 errata mitigation. So we put
 // the config one sector down.
@@ -195,6 +202,11 @@ bool read_adc() {
 #endif
 
 void do_persist_config(uint8_t* buffer) {
+#ifdef BLE_HOST_ENABLED
+    // Core 1 is running BTstack FROM FLASH. Erasing flash disables XIP, so it would be fetching
+    // instructions from a chip that has stopped answering -- and die. Freeze it first.
+    multicore_lockout_start_blocking();
+#endif
 #if !PICO_COPY_TO_RAM
     uint32_t ints = save_and_disable_interrupts();
 #endif
@@ -203,17 +215,33 @@ void do_persist_config(uint8_t* buffer) {
 #if !PICO_COPY_TO_RAM
     restore_interrupts(ints);
 #endif
+#ifdef BLE_HOST_ENABLED
+    multicore_lockout_end_blocking();
+#endif
 }
 
 void reset_to_bootloader() {
     reset_usb_boot(0, 0);
 }
 
+/* PAIR_NEW_DEVICE (config command 12) and CLEAR_BONDS (13). The web tool already has both buttons.
+   Empty on the wired builds -- there is nothing to pair. The Pico W Bluetooth build implements them
+   through the bridge; see ble_bridge / ble_host. */
+#ifdef BLE_HOST_ENABLED
+void pair_new_device() {
+    ble_bridge_request(BLE_REQ_PAIR_NEW);
+}
+
+void clear_bonds() {
+    ble_bridge_request(BLE_REQ_CLEAR_BONDS);
+}
+#else
 void pair_new_device() {
 }
 
 void clear_bonds() {
 }
+#endif
 
 void my_mutexes_init() {
     for (int i = 0; i < (int8_t) MutexId::N; i++) {

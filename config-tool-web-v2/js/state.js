@@ -52,6 +52,7 @@ function mk(inputs, output, opts = {}) {
     hold: !!opts.hold,
     scale: opts.scale != null ? opts.scale : 1.0,
     tint: opts.tint || null,
+    irCode: opts.irCode != null ? opts.irCode : null,  // raw 32-bit code, only for IR-page targets
   };
 }
 
@@ -89,6 +90,7 @@ const APP = {
     normalizeGamepad: true,
     gpioOutputMode: 0,       // 0 = push-pull, 1 = open-drain
     ignoreAuthDevInputs: false,
+    irOutputPin: 15,         // IR LED GPIO (only persisted when the config uses IR)
   },
   mappings: [],
 };

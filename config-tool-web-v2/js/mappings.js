@@ -37,6 +37,36 @@
       </button>`;
   }
 
+  /* ---------- IR command editor (replaces the scale box for IR-page targets) ----------
+     The picker chose only the protocol (target = 0xFFFB|proto); here the user picks a catalog
+     command OR types a raw 32-bit hex code. Either way the code lands in m.irCode, which
+     translate.js writes RAW into the mapping's scaling field. */
+  function isIrOutput(code) {
+    const IR = window.HRX_IR;
+    return !!(IR && IR.isIrTarget(code));
+  }
+  function irEditorHtml(m) {
+    const IR = window.HRX_IR;
+    const proto = IR.targetProto(m.output);
+    const code = m.irCode == null ? null : (m.irCode >>> 0);
+    let opts = `<option value="">Custom / pick…</option>`;
+    IR.DEVICES.filter((d) => d.proto === proto && d.buttons.length).forEach((d) => {
+      opts += `<optgroup label="${d.label}">`;
+      d.buttons.forEach(([label, c]) => {
+        const cc = c >>> 0;
+        opts += `<option value="${cc}" ${code === cc ? "selected" : ""}>${label}</option>`;
+      });
+      opts += `</optgroup>`;
+    });
+    const hex = code == null ? "" : "0x" + code.toString(16).padStart(8, "0").toUpperCase();
+    return `
+      <div class="ir-wrap" title="IR command (${IR.PROTO_NAME[proto] || "IR"})">
+        <select class="ir-cmd" data-ir-cmd="1" data-mid="${m.id}">${opts}</select>
+        <input class="ir-code" data-ir-code="1" data-mid="${m.id}" value="${hex}" placeholder="0x…"
+          spellcheck="false" title="Raw 32-bit IR code (hex)">
+      </div>`;
+  }
+
   /* A mapping whose OUTPUT is a layer (usage page 0xFFF1) has one layer FORCED, because the
      firmware forces it (set_mapping_from_config): a non-sticky layer key must be present on the
      layer it triggers (or you could never get back out of it), and a sticky one must NOT be.
@@ -109,10 +139,11 @@
     const t = tintById(m.tint);
     const style = m.tint ? `style="background:${t.fill}"` : "";
     const off = m.enabled ? "" : "disabled";
-    // An unfinished row (no output picked) is NOT sent to the device — see translate.js
-    // isIncomplete. Say so on the row, before Save.
-    const unfinished = m.output === "0x00000000";
-    const why = "Pick an output";
+    // An unfinished row (no output picked, or an IR target with no code yet) is NOT sent to the
+    // device — see translate.js isIncomplete. Say so on the row, before Save.
+    const irOut = isIrOutput(m.output);
+    const unfinished = m.output === "0x00000000" || (irOut && m.irCode == null);
+    const why = irOut ? "Pick an IR command" : "Pick an output";
     return `
       <div class="wg-branch is-solo ${off} ${unfinished ? "unfinished" : ""}" data-mid="${m.id}" draggable="true" ${style}>
         <div class="wire-track branch-wire" title="This button's behavior">
@@ -121,7 +152,7 @@
         <div class="map-arrow">${ICON.arrow}</div>
         <div class="output-cell">${usageBtnHtml(m.output, { mid: m.id, role: "output" })}</div>
         ${flagsHtml(m)}
-        <div class="scale-wrap"><input class="scale-input" type="number" step="0.001" value="${(+m.scale.toFixed(3))}" data-scale="1" data-mid="${m.id}" title="Scaling factor"></div>
+        ${irOut ? `<div class="scale-wrap"></div>` : `<div class="scale-wrap"><input class="scale-input" type="number" step="0.001" value="${(+m.scale.toFixed(3))}" data-scale="1" data-mid="${m.id}" title="Scaling factor"></div>`}
         <div class="tint-wrap" style="position:relative">
           <button class="tint-btn" data-tint="1" data-mid="${m.id}" title="Row color / category">
             <span class="tint-core" style="background:${t.id ? t.edge : "transparent"};border:${t.id ? "none" : "1px dashed var(--label)"}"></span>
@@ -135,6 +166,7 @@
           <button class="icon-btn" data-clone="1" data-mid="${m.id}" title="Clone">${ICON.clone}</button>
           <button class="icon-btn del" data-del="1" data-mid="${m.id}" title="Delete">${ICON.x}</button>
         </div>
+        ${irOut ? `<div class="ir-bar">${irEditorHtml(m)}</div>` : ""}
         ${m.enabled ? "" : `<div class="disabled-badge">Disabled</div>`}
         ${unfinished && m.enabled ? `<div class="unfinished-badge" title="This row is not sent to the device until it is complete">${why}</div>` : ""}
       </div>`;
@@ -314,7 +346,15 @@
         port: role === "input" ? (m.source_port || 0) : (m.target_port || 0),
         onPort: (p) => { if (role === "input") m.source_port = p; else m.target_port = p; },
         onSelect: (code) => {
-          if (role === "input") m.inputs[i] = code; else m.output = code;
+          if (role === "input") { m.inputs[i] = code; }
+          else {
+            const IR = window.HRX_IR;
+            // switching to a different IR protocol (or away from/into IR) invalidates the old code
+            if (!IR || !IR.isIrTarget(code) || IR.targetProto(code) !== IR.targetProto(m.output)) {
+              m.irCode = null;
+            }
+            m.output = code;
+          }
           refresh();
         },
       });
@@ -376,6 +416,23 @@
     $$('[data-scale]', root).forEach((inp) => inp.addEventListener("change", () => {
       const m = findMap(inp.dataset.mid);
       m.scale = parseFloat(inp.value) || 0;
+    }));
+
+    // IR command dropdown -> sets the raw code (empty value = keep custom code, just refocus hex)
+    $$('[data-ir-cmd]', root).forEach((sel) => sel.addEventListener("change", () => {
+      const m = findMap(sel.dataset.mid);
+      if (sel.value === "") return;               // "Custom / pick…" — leave the hex field as-is
+      m.irCode = (parseInt(sel.value, 10) >>> 0);
+      refresh();
+    }));
+    // IR raw hex code
+    $$('[data-ir-code]', root).forEach((inp) => inp.addEventListener("change", () => {
+      const m = findMap(inp.dataset.mid);
+      const v = inp.value.trim();
+      if (v === "") { m.irCode = null; refresh(); return; }
+      const n = parseInt(v, 16);
+      if (Number.isFinite(n)) { m.irCode = (n >>> 0); }
+      refresh();
     }));
 
 

@@ -20,6 +20,7 @@
     interval: (s) => { s.interval = DEF.interval; },
     gpioDebounce: (s) => { s.gpioDebounce = DEF.gpioDebounce; },
     macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
+    irOutputPin: (s) => { s.irOutputPin = DEF.irOutputPin; },
     passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
     inputLabels: (s) => { s.inputLabels = DEF.inputLabels; },
     flags: (s) => {
@@ -94,6 +95,11 @@
           num("macroEntryDuration", s.macroEntryDuration == null ? DEF.macroEntryDuration : s.macroEntryDuration, 1, 255,
               `milliseconds (default ${DEF.macroEntryDuration})`))}
 
+        ${card("irOutputPin", "IR output pin",
+          "GPIO the IR LED is wired to (only used on IR-capable firmware; saved with the config only when you have IR mappings). Avoid pins already used by USB/UART/RGB LED/Bluetooth.",
+          num("irOutputPin", s.irOutputPin == null ? DEF.irOutputPin : s.irOutputPin, 0, 29,
+              `GPIO 0–29 (default ${DEF.irOutputPin})`))}
+
         ${card("passthrough", "Unmapped passthrough",
           "Pass keys with no mapping straight through, per layer. All layers are on by default — switching a layer off silences every unmapped key on it.",
           passToggles)}
@@ -141,6 +147,7 @@
     numField("interval", "interval", 0, 255);
     numField("gpioDebounce", "gpioDebounce", 0, 255);
     numField("macroEntryDuration", "macroEntryDuration", 1, 255);
+    numField("irOutputPin", "irOutputPin", 0, 29);
 
     $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => {
       const i = +t.dataset.pass;

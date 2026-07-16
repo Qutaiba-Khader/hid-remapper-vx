@@ -571,6 +571,17 @@ const USAGE_CATEGORIES = [
     ],
   },
   {
+    id: "ir",
+    label: "IR",
+    accent: "#ff7043",
+    // IR output (page 0xFFFB): pick the PROTOCOL here; the mapping row then carries the code (a
+    // Samsung/NEC command from the catalog, or a raw hex code). Protocol = the target's low byte.
+    usages: [
+      ["0xfffb0002", "IR · Samsung"],
+      ["0xfffb0001", "IR · NEC / Xbox"],
+    ],
+  },
+  {
     id: "other",
     label: "Other",
     accent: "#a1a8c3",

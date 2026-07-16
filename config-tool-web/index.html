@@ -8,6 +8,7 @@
     <link href="style.css" rel="stylesheet">
     <title>HID Remapper VX - Visual Enhanced</title>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js" integrity="sha384-QJHtvGhmr9XOIpI6YVutG+2QOK9T+ZnN4kzFN1RtK3zEFEIsxhlmWl5/YESvpZ13" crossorigin="anonymous"></script>
+    <script src="ir-codes.js"></script>
     <script src="code.js" type="module"></script>
 </head>
 
@@ -198,6 +199,17 @@
                         <div class="input-group">
                             <input type="number" min="1" max="256" id="macro_entry_duration_input" class="form-control text-end" style="max-width: 100px;">
                             <span class="input-group-text">ms</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-4 text-end">
+                        <label for="ir_output_pin_input" class="col-form-label">IR output pin</label>
+                    </div>
+                    <div class="col-auto">
+                        <div class="input-group">
+                            <input type="number" min="0" max="29" id="ir_output_pin_input" class="form-control text-end" style="max-width: 100px;" title="GPIO the IR LED is wired to (IR-capable firmware only). Saved with the config only when you have IR mappings.">
+                            <span class="input-group-text">GPIO</span>
                         </div>
                     </div>
                 </div>
@@ -666,6 +678,13 @@
                 <input class="form-control scaling_input text-center p-0" type="number" step="0.01" style="font-size:0.8rem;min-width:40px;max-width:50px;">
                 <input type="color" class="color_input" value="#6c757d" title="Row color (double-click to reset)">
             </div>
+            <div class="col-12 ir_editor d-none mt-1">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text" style="color:#ff7043;font-weight:700;">IR</span>
+                    <select class="form-select ir_cmd_select" title="IR command"></select>
+                    <input type="text" class="form-control ir_code_input text-center" placeholder="0x… raw code" spellcheck="false" style="max-width:140px;font-family:monospace;" title="Raw 32-bit IR code (hex)">
+                </div>
+            </div>
         </div>
     </template>
 
@@ -1013,6 +1032,9 @@
                     </div>
                     <div class="col rgb_led_usage mt-3">
                         <h6 class="text-muted usage-category-header">&#9728; RGB LED</h6>
+                    </div>
+                    <div class="col ir_usage mt-3">
+                        <h6 class="text-muted usage-category-header">&#128225; IR</h6>
                     </div>
                     <div class="col other_usages mt-3">
                         <h6 class="text-muted usage-category-header">Other</h6>

@@ -44,6 +44,9 @@ function ciArtifacts() {
       for (const b of boards[1].split(",")) names.add("remapper_" + b.trim().replace(/["']/g, "") + ".uf2");
     }
   }
+  // (4) the Pico W builds — build-picow.yml is now part of the release pipeline (release.yml).
+  const pw = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-picow.yml"), "utf8");
+  for (const m of pw.matchAll(/artifacts\/(remapper[a-z0-9_]*\.uf2)/g)) names.add(m[1]);
   return names;
 }
 
@@ -51,21 +54,13 @@ test("the tool offers a non-trivial number of firmware builds", () => {
   assert.ok(offered.length >= 20, `only ${offered.length} builds offered — the list has gone stale`);
 });
 
-/* The Pico W Bluetooth build is produced by build-picow.yml, which lives on the
-   feature/picow-bt-input branch and is NOT part of master's release pipeline yet. Its .uf2 was
-   uploaded to the release BY HAND, and the download link is verified live (200). So it is a real,
-   working link that this CI-parsing check cannot see.
-
-   Whitelisted deliberately, not silenced: when build-picow lands in release.yml, DELETE this entry
-   and the check will cover it like every other file. Leaving it whitelisted forever would hide a
-   genuine 404 the day the manual upload is forgotten. */
-const MANUALLY_UPLOADED = new Set(["remapper_picow_ble.uf2"]);
-
 test("every firmware file the tool offers is one CI actually produces", () => {
   const built = ciArtifacts();
   assert.ok(built.size > 0, "could not parse any artifact names out of the CI workflows");
 
-  const phantom = offered.filter((f) => !built.has(f) && !MANUALLY_UPLOADED.has(f));
+  // No whitelist any more: build-picow is in release.yml, so both Pico W .uf2 are parsed above like
+  // every other file. (Was: a manual-upload whitelist for remapper_picow_ble.uf2.)
+  const phantom = offered.filter((f) => !built.has(f));
   assert.deepStrictEqual(phantom, [],
     "the tool links to .uf2 files CI never builds — these are 404s: " + phantom.join(", "));
 });

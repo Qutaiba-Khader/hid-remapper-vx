@@ -667,6 +667,7 @@
   const FW_BOARDS = [
     { name: "Pico / Pico W", chip: "RP2040", files: [
       { file: "remapper.uf2", sub: "Single board" },
+      { file: "remapper_picow_usb.uf2", sub: "Pico W · wired USB input (plug your device into the Pico W)" },
       { file: "remapper_dual_a.uf2", sub: "Dual · side A — plugs into the PC" },
       { file: "remapper_dual_b.uf2", sub: "Dual · side B — your device plugs in here" },
       { file: "remapper_dual_combined.uf2", sub: "Dual · combined (A flashes B over SWD)" },

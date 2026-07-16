@@ -35,21 +35,25 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord
-      - name: Build remapper_picow + remapper_picow_ble
+      # Two Pico W firmwares, distinguished by where the INPUT comes from:
+      #   remapper_picow_usb.uf2 = the standard wired remapper built for pico_w (USB device -> engine
+      #                            -> USB HID out). The `remapper` target renamed on mv.
+      #   remapper_picow_ble.uf2 = the Bluetooth remapper (BLE HID host -> engine -> USB HID out).
+      - name: Build Pico W USB + BLE remappers
         working-directory: ./firmware
         run: |
           mkdir build-picow
           cd build-picow
           PICO_BOARD=pico_w cmake .. -DBLE_TARGET_ADDR="${{ github.event.inputs.ble_target_addr }}" -DBLE_CLEAR_BONDS=${{ github.event.inputs.ble_clear_bonds == 'true' && 'ON' || 'OFF' }}
-          make -j$(nproc) remapper_picow remapper_picow_ble
+          make -j$(nproc) remapper remapper_picow_ble
           cd ..
           mkdir -p artifacts
-          mv build-picow/remapper_picow.uf2 artifacts/remapper_picow.uf2
+          mv build-picow/remapper.uf2 artifacts/remapper_picow_usb.uf2
           mv build-picow/remapper_picow_ble.uf2 artifacts/remapper_picow_ble.uf2
       - name: Verify artifacts
         run: |
           ls -la firmware/artifacts/
-          test -f firmware/artifacts/remapper_picow.uf2
+          test -f firmware/artifacts/remapper_picow_usb.uf2
           test -f firmware/artifacts/remapper_picow_ble.uf2
       - uses: actions/upload-artifact@v4
         with:

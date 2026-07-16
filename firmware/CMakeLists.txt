@@ -55,7 +55,11 @@ add_executable(remapper
     src/xbox.cc
 )
 
-if((PICO_BOARD STREQUAL "pico") OR (PICO_BOARD STREQUAL "pico2"))
+# pico_w/pico2_w included so the standard `remapper` (wired USB remapper) also builds for the Pico W
+# -> shipped as remapper_picow_usb.uf2. A Pico W is an RP2040; PIO-USB host on GP0/GP1 works the same.
+# (The CYW43 wireless pins GP23/24/25/29 are untouched here and this build never brings up cyw43.)
+if((PICO_BOARD STREQUAL "pico") OR (PICO_BOARD STREQUAL "pico2") OR
+   (PICO_BOARD STREQUAL "pico_w") OR (PICO_BOARD STREQUAL "pico2_w"))
 target_compile_definitions(remapper PUBLIC PICO_DEFAULT_UART_TX_PIN=16)
 target_compile_definitions(remapper PUBLIC PICO_DEFAULT_UART_RX_PIN=17)
 target_compile_definitions(remapper PUBLIC PICO_DEFAULT_PIO_USB_DP_PIN=0)
@@ -270,28 +274,16 @@ add_custom_target(remapper_dual_combined ALL
     DEPENDS remapper_dual_combined.uf2
 )
 
-# --- Pico W Bluetooth Classic build (opt-in, isolated). Only configured when
-# PICO_BOARD=pico_w, so the default `cmake ..` and every other board build stay
-# byte-identical (golden rule #1). Task 1 is a heartbeat that proves toolchain +
-# CYW43 + USB-CDC serial + CI. Task 2 adds BTstack HID host (bt_host + config). ---
+# --- Pico W builds (opt-in, isolated). Only configured when PICO_BOARD=pico_w, so the default
+# `cmake ..` and every other board build stay byte-identical (golden rule #1). Two products:
+#   * remapper_picow_ble  -> remapper_picow_ble.uf2  (Bluetooth input; defined below)
+#   * the standard `remapper` target, built for pico_w -> remapper_picow_usb.uf2 (wired USB input;
+#     see build-picow.yml, which just renames remapper.uf2). ---
 if(PICO_BOARD STREQUAL "pico_w")
-    add_executable(remapper_picow
-        src/remapper_picow.cc
-        src/bt_host.c
-    )
-    target_include_directories(remapper_picow PRIVATE src)  # finds btstack_config.h
-    target_link_libraries(remapper_picow
-        pico_stdlib
-        pico_cyw43_arch_none
-        pico_btstack_cyw43
-        pico_btstack_classic
-    )
-    # Serial over the Pico W's own USB (no UART adapter / no extra hardware).
-    pico_enable_stdio_usb(remapper_picow 1)
-    pico_enable_stdio_uart(remapper_picow 0)
-    pico_add_extra_outputs(remapper_picow)
+    # (The old `remapper_picow` Classic-BT proof-of-concept was dropped -- it only dumped reports to
+    #  serial and was never a real remapper. The Pico W ships two builds: this BLE one, and the
+    #  standard `remapper` compiled for pico_w -> remapper_picow_usb.uf2, both via build-picow.yml.)
 
-    # BLE HID-over-GATT host (for BLE remotes like the G20s)
     # THE PICO W BLUETOOTH REMAPPER.
     # The FULL hid-remapper engine (same sources as `remapper`), with the BLE HID host in place of
     # the PIO-USB host: BTstack on core 1, engine + TinyUSB DEVICE on core 0, meeting only in
@@ -325,10 +317,8 @@ if(PICO_BOARD STREQUAL "pico_w")
     # tusb_config_DEVICE, not _both: this build is a USB DEVICE only. There is no USB host --
     # the input arrives over Bluetooth. (Without this, tusb.h pulls in no device API at all and
     # every tud_* call is "not declared in this scope".)
-    # src/ble MUST come FIRST.
-    # There are TWO btstack_config.h files: src/btstack_config.h (Classic BT, for remapper_picow)
-    # and src/ble/btstack_config.h (BLE). With src/ first, BTstack's hci.c picked up the CLASSIC
-    # one, which has no ENABLE_LE_PERIPHERAL -- and failed with
+    # src/ble MUST come FIRST in the include path so BTstack picks up src/ble/btstack_config.h
+    # (the BLE config with ENABLE_LE_PERIPHERAL). If src/ shadowed it, hci.c failed with
     #   "'hci_stack_t' has no member named 'le_advertisements_state'"
     # which looks like a BTstack version problem and is not.
     target_include_directories(remapper_picow_ble PRIVATE

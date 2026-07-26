@@ -47,6 +47,10 @@ function ciArtifacts() {
   // (4) the Pico W builds — build-picow.yml is now part of the release pipeline (release.yml).
   const pw = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-picow.yml"), "utf8");
   for (const m of pw.matchAll(/artifacts\/(remapper[a-z0-9_]*\.uf2)/g)) names.add(m[1]);
+  // (5) the IR-output builds (build-ir.yml) — the `remapper`/`remapper_picow_ble` targets rebuilt
+  //     with -DIR_OUTPUT_ENABLED=ON, renamed to *_ir.uf2. Not in release.yml yet; see feature/ir-output.
+  const ir = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-ir.yml"), "utf8");
+  for (const m of ir.matchAll(/artifacts\/(remapper[a-z0-9_]*\.uf2)/g)) names.add(m[1]);
   return names;
 }
 

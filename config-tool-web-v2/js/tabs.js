@@ -20,6 +20,7 @@
     interval: (s) => { s.interval = DEF.interval; },
     gpioDebounce: (s) => { s.gpioDebounce = DEF.gpioDebounce; },
     macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
+    irOutputPin: (s) => { s.irOutputPin = DEF.irOutputPin; },
     passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
     inputLabels: (s) => { s.inputLabels = DEF.inputLabels; },
     flags: (s) => {
@@ -94,6 +95,11 @@
           num("macroEntryDuration", s.macroEntryDuration == null ? DEF.macroEntryDuration : s.macroEntryDuration, 1, 255,
               `milliseconds (default ${DEF.macroEntryDuration})`))}
 
+        ${card("irOutputPin", "IR output pin",
+          "GPIO the IR LED is wired to (only used on IR-capable firmware; saved with the config only when you have IR mappings). Avoid pins already used by USB/UART/RGB LED/Bluetooth.",
+          num("irOutputPin", s.irOutputPin == null ? DEF.irOutputPin : s.irOutputPin, 0, 29,
+              `GPIO 0–29 (default ${DEF.irOutputPin})`))}
+
         ${card("passthrough", "Unmapped passthrough",
           "Pass keys with no mapping straight through, per layer. All layers are on by default — switching a layer off silences every unmapped key on it.",
           passToggles)}
@@ -141,6 +147,7 @@
     numField("interval", "interval", 0, 255);
     numField("gpioDebounce", "gpioDebounce", 0, 255);
     numField("macroEntryDuration", "macroEntryDuration", 1, 255);
+    numField("irOutputPin", "irOutputPin", 0, 29);
 
     $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => {
       const i = +t.dataset.pass;
@@ -701,6 +708,13 @@
       { file: "remapper_picow_ble.uf2", sub: "Pico W · Bluetooth LE input (RP2040 + CYW43)" },
       { file: "remapper_adafruit_feather_nrf52840.uf2", sub: "Adafruit Feather nRF52840" },
       { file: "remapper_seeed_xiao_nrf52840.uf2", sub: "Seeed XIAO nRF52840" },
+    ] },
+    /* Infrared (IR) output = map any button to a TV/AV remote key (NEC & Samsung). Wire an IR LED to
+       the IR output pin (Settings tab; default GP15) and add an IR mapping. These builds add the IR
+       blaster on top of the matching board; the stock build is byte-identical and unchanged. */
+    { name: "Infrared (IR) output", chip: "RP2040 / Pico W", files: [
+      { file: "remapper_picow_ble_ir.uf2", sub: "Pico W · Bluetooth input + IR blaster" },
+      { file: "remapper_ir.uf2", sub: "Pico / Pico W · wired USB input + IR blaster" },
     ] },
     { name: "Other boards", chip: "RP2040 / RP2350", files: [
       { file: "remapper_board.uf2", sub: "Custom JLCPCB board" },

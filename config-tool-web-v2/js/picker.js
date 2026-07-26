@@ -133,9 +133,9 @@
      filtered to the current profile, and the profile's own NAME is used where it has one.
 
      The firmware's internal target pages are always available whatever the profile: layers, macros,
-     GPIO, registers, digipot, D-pad and the RGB LED. (Expressions, 0xFFF3, are a SOURCE only — you
-     read an expression, you never write to one — so they are correctly not offered as an output.) */
-  const ALWAYS_TARGETABLE = ["0xfff1", "0xfff2", "0xfff4", "0xfff5", "0xfff6", "0xfff9", "0xfffa"];
+     GPIO, registers, digipot, D-pad, the RGB LED and IR output. (Expressions, 0xFFF3, are a SOURCE
+     only — you read an expression, you never write to one — so they are correctly not an output.) */
+  const ALWAYS_TARGETABLE = ["0xfff1", "0xfff2", "0xfff4", "0xfff5", "0xfff6", "0xfff9", "0xfffa", "0xfffb"];
   function profileTargets() {
     if (state.mode !== "output") return null;                // only the target list is constrained
     const v1 = window.HRX_V1_USAGES;

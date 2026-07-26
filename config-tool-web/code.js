@@ -35,7 +35,16 @@ const LAYERS_USAGE_PAGE = 0xFFF10000;
 const EXPR_USAGE_PAGE = 0xFFF30000;
 const MIDI_USAGE_PAGE = 0xFFF70000;
 const RGB_LED_USAGE_PAGE = 0xFFFA0000;  // low 16 bits = RGB565 color
+const IR_USAGE_PAGE = 0xFFFB0000;       // low byte = IR protocol; code lives in the mapping's scaling
+const IR_PIN_USAGE = '0xfffb00ff';      // set-pin pseudo-mapping (scaling = the GPIO)
 const BUTTON_USAGE_PAGE = 0x00090000;
+
+// An IR *send* target (an IR-page target that isn't the set-pin pseudo-mapping).
+function is_ir_target(usage) {
+    const n = parseInt(usage, 16) >>> 0;
+    const p = (n >>> 16) === 0xfffb ? (n & 0xff) : 0;
+    return p !== 0 && p !== 0xff;
+}
 
 const RESET_INTO_BOOTSEL = 1;
 const SET_CONFIG = 2;
@@ -196,6 +205,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("tap_hold_threshold_input").addEventListener("change", tap_hold_threshold_onchange);
     document.getElementById("gpio_debounce_time_input").addEventListener("change", gpio_debounce_time_onchange);
     document.getElementById("macro_entry_duration_input").addEventListener("change", macro_entry_duration_onchange);
+    document.getElementById("ir_output_pin_input").addEventListener("change", ir_output_pin_onchange);
     for (let i = 0; i < NLAYERS; i++) {
         document.getElementById("unmapped_passthrough_checkbox" + i).addEventListener("change", unmapped_passthrough_onchange);
     }
@@ -653,8 +663,10 @@ function set_config_ui_state() {
 function set_mappings_ui_state() {
     clear_children(document.getElementById('mappings'));
     for (const mapping of config['mappings']) {
+        if (mapping['target_usage'] === IR_PIN_USAGE) continue; // the IR pin is a Setting, not a row
         add_mapping(mapping);
     }
+    update_ir_pin_input();
 }
 
 function set_macros_ui_state() {
@@ -870,6 +882,7 @@ function add_mapping(mapping) {
     target_button.title = mapping['target_usage'];
     target_button.addEventListener("click", show_usage_modal(mapping, 'target', clone));
     set_port_badge(target_button, mapping['target_port']);
+    setup_ir_editor(mapping, clone);
     setup_reorder(clone);
     container.appendChild(clone);
     set_forced_layers(mapping, clone);
@@ -877,6 +890,90 @@ function add_mapping(mapping) {
     if (modal_return_mapping === mapping) {
         modal_return_element = clone;
     }
+}
+
+// IR mappings replace the scaling box with a command editor: a catalog dropdown + a raw hex code
+// field, both writing the 32-bit code into mapping.scaling (RAW, not ×1000). The picker only chose
+// the protocol (target 0xFFFB|proto); this is where the actual command is set.
+function setup_ir_editor(mapping, clone) {
+    const editor = clone.querySelector('.ir_editor');
+    const scaling_cell = clone.querySelector('.scaling_input').parentElement;
+    const select = clone.querySelector('.ir_cmd_select');
+    const code_input = clone.querySelector('.ir_code_input');
+
+    if (!is_ir_target(mapping['target_usage'])) {
+        editor.classList.add('d-none');
+        scaling_cell.classList.remove('d-none');
+        return;
+    }
+    editor.classList.remove('d-none');
+    scaling_cell.classList.add('d-none');
+
+    const IR = window.HRX_IR;
+    const proto = IR.targetProto(mapping['target_usage']);
+    const code = (mapping['scaling'] >>> 0);
+
+    let opts = '<option value="">Custom / pick…</option>';
+    IR.DEVICES.filter((d) => d.proto === proto && d.buttons.length).forEach((d) => {
+        opts += '<optgroup label="' + d.label + '">';
+        d.buttons.forEach(([label, c]) => {
+            const cc = c >>> 0;
+            opts += '<option value="' + cc + '"' + (code === cc ? ' selected' : '') + '>' + label + '</option>';
+        });
+        opts += '</optgroup>';
+    });
+    select.innerHTML = opts;
+    code_input.value = mapping['scaling'] ? ('0x' + code.toString(16).padStart(8, '0').toUpperCase()) : '';
+
+    select.onchange = function () {
+        if (select.value === '') return;                 // "Custom" — leave the hex field as-is
+        mapping['scaling'] = (parseInt(select.value, 10) >>> 0);
+        code_input.value = '0x' + (mapping['scaling'] >>> 0).toString(16).padStart(8, '0').toUpperCase();
+    };
+    code_input.onchange = function () {
+        const v = code_input.value.trim();
+        if (v === '') { mapping['scaling'] = 0; select.value = ''; return; }
+        const n = parseInt(v.replace(/^0x/i, ''), 16);
+        if (Number.isFinite(n)) {
+            mapping['scaling'] = (n >>> 0);
+            const cc = mapping['scaling'] >>> 0;
+            select.value = [...select.options].some((o) => +o.value === cc) ? String(cc) : '';
+        }
+    };
+}
+
+// After the target is (re)picked in the modal, swap the row between the scaling box and the IR
+// editor. A protocol change invalidates the previous code.
+function update_ir_editor(mapping, container) {
+    if (!container) return;
+    setup_ir_editor(mapping, container);
+}
+
+// The global IR output pin is a synthetic 0xFFFB00FF mapping (scaling = the GPIO). Kept in
+// config.mappings (so it saves) but never rendered as a row.
+function find_ir_pin_mapping() {
+    return (config['mappings'] || []).find((m) => m['target_usage'] === IR_PIN_USAGE) || null;
+}
+function upsert_ir_pin(pin) {
+    let m = find_ir_pin_mapping();
+    if (pin == null || pin === '' || isNaN(pin)) {
+        if (m) config['mappings'] = config['mappings'].filter((x) => x !== m);
+        return;
+    }
+    if (!m) {
+        config['mappings'].push({
+            'target_usage': IR_PIN_USAGE, 'source_usage': '0x00000000', 'scaling': pin | 0,
+            'layers': [], 'sticky': false, 'tap': false, 'hold': false, 'source_port': 0, 'target_port': 0,
+        });
+    } else {
+        m['scaling'] = pin | 0;
+    }
+}
+function update_ir_pin_input() {
+    const input = document.getElementById('ir_output_pin_input');
+    if (!input) return;
+    const m = find_ir_pin_mapping();
+    input.value = m ? (m['scaling'] & 0xff) : 15;
 }
 
 function download_json() {
@@ -1196,7 +1293,13 @@ function show_usage_modal(mapping_, source_or_target, element_) {
                     modal_return_element.querySelector('.' + source_or_target + '_button');
                 let usage = clone.getAttribute('data-hid-usage');
                 if (mapping !== null) {
+                    const old_usage = mapping[source_or_target + '_usage'];
                     mapping[source_or_target + '_usage'] = usage;
+                    // switching IR protocol (or into IR from something else) invalidates the old code
+                    if (source_or_target == 'target' && is_ir_target(usage) &&
+                        (!is_ir_target(old_usage) || (parseInt(usage, 16) & 0xff) !== (parseInt(old_usage, 16) & 0xff))) {
+                        mapping['scaling'] = 0;
+                    }
                 }
                 element.querySelector('.button_label').innerText =
                     source_or_target == "source" ? readable_usage_name(usage) : readable_target_usage_name(usage);
@@ -1205,6 +1308,7 @@ function show_usage_modal(mapping_, source_or_target, element_) {
 
                 if (source_or_target == "target") {
                     set_forced_layers(mapping, element.closest(".mapping_container"));
+                    update_ir_editor(mapping, element.closest(".mapping_container"));
                 }
 
                 if (source_or_target == "source") {
@@ -1510,6 +1614,7 @@ function setup_usage_modal(source_or_target) {
         'gpios_usage': modal_element.querySelector('.gpios_usage'),
         'analogs_usage': modal_element.querySelector('.analogs_usage'),
         'rgb_led_usage': modal_element.querySelector('.rgb_led_usage'),
+        'ir_usage': modal_element.querySelector('.ir_usage'),
         'other': modal_element.querySelector('.other_usages'),
         'extra': modal_element.querySelector('.extra_usages'),
     };
@@ -1815,6 +1920,15 @@ function macro_entry_duration_onchange() {
         value = 256;
     }
     config['macro_entry_duration'] = value;
+}
+
+function ir_output_pin_onchange() {
+    let value = parseInt(document.getElementById("ir_output_pin_input").value, 10);
+    if (isNaN(value) || value < 0 || value > 29) {
+        value = 15; // firmware default
+        document.getElementById("ir_output_pin_input").value = value;
+    }
+    upsert_ir_pin(value);
 }
 
 function input_labels_onchange(element_id) {

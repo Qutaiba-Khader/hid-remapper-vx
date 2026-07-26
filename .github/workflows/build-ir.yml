@@ -1,0 +1,57 @@
+name: build-ir
+on:
+  push:
+    branches:
+      - feature/ir-output
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/build-ir.yml'
+  workflow_call:      # so release.yml can build the IR variants into a release later
+  workflow_dispatch:
+defaults:
+  run:
+    shell: bash --noprofile --norc -x -e -o pipefail {0}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # Pico-PIO-USB (wired build) + pico-sdk's btstack/cyw43 (BLE build)
+      - name: Install compiler and tools
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib srecord
+      # Two IR firmwares, one per input path. IR itself is board-agnostic (PWM carrier, never PIO):
+      #   remapper_ir.uf2           = wired USB input + IR out (the standard `remapper`, IR on).
+      #   remapper_picow_ble_ir.uf2 = Bluetooth input + IR out (SofaBaton BT remote -> IR blaster).
+      - name: Build wired USB + IR
+        working-directory: ./firmware
+        run: |
+          mkdir build-ir
+          cd build-ir
+          PICO_BOARD=pico cmake .. -DIR_OUTPUT_ENABLED=ON
+          make -j$(nproc) remapper
+      - name: Build Pico W BLE + IR
+        working-directory: ./firmware
+        run: |
+          mkdir build-ir-ble
+          cd build-ir-ble
+          PICO_BOARD=pico_w cmake .. -DIR_OUTPUT_ENABLED=ON
+          make -j$(nproc) remapper_picow_ble
+      - name: Collect + rename artifacts
+        working-directory: ./firmware
+        run: |
+          mkdir -p artifacts
+          mv build-ir/remapper.uf2 artifacts/remapper_ir.uf2
+          mv build-ir-ble/remapper_picow_ble.uf2 artifacts/remapper_picow_ble_ir.uf2
+      - name: Verify artifacts
+        run: |
+          ls -la firmware/artifacts/
+          test -f firmware/artifacts/remapper_ir.uf2
+          test -f firmware/artifacts/remapper_picow_ble_ir.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remapper_ir-uf2
+          path: firmware/artifacts/

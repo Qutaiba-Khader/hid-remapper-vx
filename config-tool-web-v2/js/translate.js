@@ -38,6 +38,7 @@
     ignoreAuthDevInputs: false,
     gpioOutputMode: 0,
     inputLabels: 0,
+    irOutputPin: 15,     // IR LED GPIO (firmware default; only written when the config uses IR)
   };
 
   // cosmetic tint id <-> hex (row background tint only; not a device field per se, stored as config.color)
@@ -61,6 +62,18 @@
     const n = parseInt(s, 16) >>> 0;
     return "0x" + n.toString(16).padStart(8, "0");
   };
+
+  /* ---- IR output (page 0xFFFB) ----
+     Unlike every other target, an IR mapping carries a 32-bit CODE in the `scaling` field (raw, NOT
+     ×1000) — the protocol lives in the target's low byte (0xFFFB0001 = NEC, 0xFFFB0002 = Samsung).
+     The global IR LED pin rides a synthetic mapping (0xFFFB00FF, scaling = the GPIO). So IR is the
+     one target that must bypass the scale↔scaling ×1000 conversion below. */
+  const IR_PIN_USAGE = "0xfffb00ff";
+  const irProto = (u) => {                      // protocol id in an IR target, or 0 if not IR
+    const n = parseInt(normHex(u), 16) >>> 0;
+    return (n >>> 16) === 0xfffb ? (n & 0xff) : 0;
+  };
+  const isIrTarget = (u) => { const p = irProto(u); return p !== 0 && p !== 0xff; };
 
 
   /* ---- expression numbers are FIXED POINT on the device ----
@@ -123,7 +136,10 @@
       sticky: !!m.sticky,
       tap: !!m.tap,
       hold: !!m.hold,
-      scaling: Math.round((m.scale == null ? 1 : m.scale) * 1000),
+      // IR: the 32-bit code goes in raw (| 0 keeps all 32 bits as a signed int32); everyone else ×1000
+      scaling: isIrTarget(m.output)
+        ? ((m.irCode == null ? 0 : m.irCode) | 0)
+        : Math.round((m.scale == null ? 1 : m.scale) * 1000),
       source_port: m.source_port || 0,
       target_port: m.target_port || 0,
     };
@@ -142,7 +158,9 @@
       sticky: !!cm.sticky,
       tap: !!cm.tap,
       hold: !!cm.hold,
-      scale: (cm.scaling == null ? DEFAULT_SCALING : cm.scaling) / 1000,
+      // IR: read the raw code back into irCode (unsigned); scale stays 1. Everyone else: scaling ÷1000.
+      scale: isIrTarget(cm.target_usage) ? 1 : (cm.scaling == null ? DEFAULT_SCALING : cm.scaling) / 1000,
+      irCode: isIrTarget(cm.target_usage) ? ((cm.scaling == null ? 0 : cm.scaling) >>> 0) : null,
       tint: colorToTint(cm.color),
       customColor: keepColor(cm.color),   // a v1 colour we have no tint for — do not lose it
       source_port: cm.source_port || 0,
@@ -163,7 +181,9 @@
     // An UNFINISHED row (no output picked yet) must never reach the device — it would map a
     // key to nothing. NOTE: an input of 0x00000000 IS legitimate: it is the "always on" source
     // used to drive the RGB LED, so it is deliberately allowed through.
-    const isIncomplete = (m) => normHex(m.output) === "0x00000000";
+    // ...and an IR row with no code chosen yet is also unfinished.
+    const isIncomplete = (m) =>
+      normHex(m.output) === "0x00000000" || (isIrTarget(m.output) && m.irCode == null);
 
     const mappings = [];
     let incomplete = 0;
@@ -171,6 +191,18 @@
       if (opts.forDevice && isIncomplete(m)) { incomplete++; return; }
       mappings.push(appMappingToConfig(m));
     });
+
+    // Global IR output pin -> a synthetic mapping (0xFFFB00FF, scaling = pin), appended once, ONLY
+    // when the config actually uses IR. Non-IR configs stay identical to the stock tool's output.
+    if (mappings.some((cm) => isIrTarget(cm.target_usage))) {
+      mappings.push({
+        source_usage: "0x00000000",
+        target_usage: IR_PIN_USAGE,
+        layers: [], sticky: false, tap: false, hold: false,
+        scaling: (s.irOutputPin == null ? DEFAULTS.irOutputPin : toInt(s.irOutputPin)) | 0,
+        source_port: 0, target_port: 0,
+      });
+    }
 
     const config = {
       version: CONFIG_VERSION,
@@ -203,7 +235,10 @@
 
   function configToApp(config, base, uid) {
     base = base || {};
-    const raw = config.mappings || [];
+    // Pull the synthetic IR-pin mapping out into settings; it is not a user row.
+    const raw0 = config.mappings || [];
+    const pinMap = raw0.find((cm) => normHex(cm.target_usage) === IR_PIN_USAGE);
+    const raw = raw0.filter((cm) => normHex(cm.target_usage) !== IR_PIN_USAGE);
     const mappings = raw.map((cm) => configMappingToApp(cm, uid));
 
     // restore which rows were switched off (additive, web-only)
@@ -226,6 +261,7 @@
       gpioOutputMode: config.gpio_output_mode ? 1 : 0,
       inputLabels: toInt(config.input_labels),
       normalizeGamepad: config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs,
+      irOutputPin: pinMap ? (toInt(pinMap.scaling) & 0xff) : DEFAULTS.irOutputPin,
     });
 
     return Object.assign({}, base, {
@@ -247,6 +283,7 @@
     appMappingToConfig, configMappingToApp,
     exprToDevice, exprToApp,
     appToConfig, configToApp,
+    isIrTarget, irProto, IR_PIN_USAGE,
   };
 
   if (typeof window !== "undefined") window.HRX_TRANSLATE = API;

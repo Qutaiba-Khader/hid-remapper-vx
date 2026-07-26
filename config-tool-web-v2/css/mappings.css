@@ -302,6 +302,28 @@
 .scale-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .scale-input:focus { outline: none; border-color: var(--purple-hi); box-shadow: 0 0 0 3px var(--purple-glow); }
 
+/* IR command editor — a full-width bar under the row (the 50px scale cell is too narrow) */
+.ir-bar { grid-column: 1 / -1; margin-top: 6px; }
+.ir-wrap { display: flex; gap: 8px; align-items: center; }
+.ir-wrap::before {
+  content: "IR"; flex: none;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px;
+  color: #ff7043; border: 1px solid #ff7043; border-radius: var(--radius-xs); padding: 2px 5px;
+}
+.ir-cmd {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--font-sans); font-size: 12px; color: var(--text-strong);
+  background: var(--bg-deep); border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xs); padding: 6px 8px;
+}
+.ir-code {
+  flex: 0 0 128px; width: 128px;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-strong); text-align: center;
+  background: var(--bg-deep); border: 1px solid var(--border-bright);
+  border-radius: var(--radius-xs); padding: 6px 4px; text-transform: uppercase;
+}
+.ir-cmd:focus, .ir-code:focus { outline: none; border-color: var(--purple-hi); box-shadow: 0 0 0 3px var(--purple-glow); }
+
 /* row color tint picker */
 .tint-btn {
   width: 22px; height: 22px; border-radius: 50%;

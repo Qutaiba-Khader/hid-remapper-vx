@@ -16,6 +16,9 @@
 #include "our_descriptor.h"
 #include "platform.h"
 #include "remapper.h"
+#ifdef IR_OUTPUT_ENABLED
+#include "ir_output.h"
+#endif
 
 #define MAX_REPORT_SIZE 64
 
@@ -439,6 +442,15 @@ void set_mapping_from_config() {
     uint32_t gpio_out_mask_ = 0;
 
     for (auto const& mapping : config_mappings) {
+#ifdef IR_OUTPUT_ENABLED
+        // The set-pin pseudo-mapping is config, not a firing mapping: read the IR LED pin from its
+        // scaling and don't build a reverse-map entry for it. Runs once per config reload;
+        // ir_output_set_pin() is idempotent so re-applying the same pin is a no-op.
+        if (mapping.target_usage == IR_CONFIG_PIN_USAGE) {
+            ir_output_set_pin((uint8_t) mapping.scaling);
+            continue;
+        }
+#endif
         uint8_t layer_mask = mapping.layer_mask;
         uint8_t source_port = mapping.hub_ports & 0x0F;
         uint8_t orig_source_port = source_port;
@@ -700,6 +712,11 @@ void set_mapping_from_config() {
         } else if ((target & 0xFFFF0000) == RGB_LED_USAGE_PAGE) {
             // RGB-LED target: the color lives in the usage's low 16 bits; there is no
             // output bit-buffer. The LED is driven in process_mapping()/write_rgb_led().
+#endif
+#ifdef IR_OUTPUT_ENABLED
+        } else if ((target & 0xFFFF0000) == IR_USAGE_PAGE) {
+            // IR target: protocol in the usage's low bits, code in the source's scaling; there is
+            // no output bit-buffer. The frame is fired on the rising edge in process_mapping().
 #endif
         } else {
             bool handled = false;
@@ -1351,6 +1368,29 @@ void process_mapping(bool auto_repeat) {
                 }
                 rgb_led_update_active(target, led_active, rev_map.led_prev_active);
                 rev_map.led_prev_active = led_active;
+                continue;
+            }
+#endif
+#ifdef IR_OUTPUT_ENABLED
+            if ((target & 0xFFFF0000) == IR_USAGE_PAGE) {
+                // Fire once on the rising edge of a real (non-"nothing") source. Read the pressed
+                // state and the packed code straight from the source, NOT from `value`: `value` is
+                // clamped to >= 0 above (line ~1334) and Samsung codes have the high bit set, so a
+                // scaling-derived `value` would be forced to 0 and the frame would never fire.
+                bool ir_active = false;
+                uint32_t ir_code = 0;
+                for (auto const& src : rev_map.sources) {
+                    if ((src.usage != 0) && (layer_state_mask & src.layer_mask) &&
+                        (src.input_state != nullptr) && (*src.input_state != 0)) {
+                        ir_active = true;
+                        ir_code = (uint32_t) src.scaling;  // the raw 32-bit IR code
+                        break;
+                    }
+                }
+                if (ir_active && !rev_map.ir_prev_active) {
+                    ir_output_send(target & 0xFF, ir_code);  // protocol in the target's low byte
+                }
+                rev_map.ir_prev_active = ir_active;
                 continue;
             }
 #endif

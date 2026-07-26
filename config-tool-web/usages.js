@@ -941,6 +941,10 @@ const common_target_usages = {
     "0xfffaf81f": { 'name': 'LED Magenta', 'class': 'rgb_led_usage' },
     "0xfffaf810": { 'name': 'LED Pink', 'class': 'rgb_led_usage' },
     "0xfffaffff": { 'name': 'LED White', 'class': 'rgb_led_usage' },
+    // IR output (page 0xFFFB): pick the PROTOCOL here; the mapping row then carries the command
+    // (a Samsung/NEC code from the catalog, or a raw hex code). Protocol = the target's low byte.
+    "0xfffb0002": { 'name': 'IR · Samsung', 'class': 'ir_usage' },
+    "0xfffb0001": { 'name': 'IR · NEC / Xbox', 'class': 'ir_usage' },
 }
 
 usages[8] = {

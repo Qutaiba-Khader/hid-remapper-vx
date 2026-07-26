@@ -34,6 +34,21 @@
 #define IR_OUTPUT_DEFAULT_PIN 15
 #endif
 
+// Frames sent per key-down. A real remote transmits continuously while the button is held; we
+// fire once on the rising edge, and a lone frame is the classic "the TV ignores it sometimes"
+// bug -- receivers with slow AGC can swallow the first burst. 3 costs ~300 ms of air time, during
+// which further presses are dropped (ir_output_send() is busy); lower it to 2 if you machine-gun
+// a volume key.
+#ifndef IR_OUTPUT_FRAMES
+#define IR_OUTPUT_FRAMES 3
+#endif
+
+// Quiet time between repeated frames (us). NEC repeats every 110 ms from frame start and a frame
+// is ~45-80 ms, so ~40 ms of silence lands the period in the right ballpark for either protocol.
+#ifndef IR_OUTPUT_FRAME_GAP_US
+#define IR_OUTPUT_FRAME_GAP_US 40000
+#endif
+
 // Set up IR output on the default pin. Safe to call once at boot. No-op if IR is disabled.
 void ir_output_init();
 

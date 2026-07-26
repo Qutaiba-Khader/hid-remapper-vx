@@ -20,6 +20,8 @@ static uint16_t ir_buf[72];
 static uint8_t ir_len = 0;
 static volatile uint8_t ir_idx = 0;
 static volatile bool ir_busy = false;
+static volatile uint8_t ir_frames_left = 0;  // whole frames still to send after the current one
+static volatile bool ir_in_gap = false;      // the quiet time between repeated frames
 static alarm_id_t ir_alarm_id = 0;
 
 static inline void ir_mark() { pwm_set_chan_level(ir_slice, ir_chan, ir_level); }
@@ -52,6 +54,8 @@ static void ir_teardown() {
     if (ir_busy) {
         cancel_alarm(ir_alarm_id);
         ir_busy = false;
+        ir_frames_left = 0;
+        ir_in_gap = false;
     }
     pwm_set_enabled(ir_slice, false);
     gpio_set_function(ir_pin, GPIO_FUNC_SIO);
@@ -70,6 +74,11 @@ void ir_output_set_pin(uint8_t pin) {
 
     ir_pin = pin;
     gpio_set_function(pin, GPIO_FUNC_PWM);
+    // The pad defaults to 4 mA, which is the range bottleneck when the LED hangs straight off the
+    // GPIO (a bare module, no transistor). 12 mA is the strongest the pad offers and is within
+    // spec for a pin driving a current-limited LED. It cannot fix a module whose own series
+    // resistor is already starving the LED -- that needs a driver transistor.
+    gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_12MA);
     ir_slice = pwm_gpio_to_slice_num(pin);
     ir_chan = pwm_gpio_to_channel(pin);
 
@@ -82,7 +91,11 @@ void ir_output_set_pin(uint8_t pin) {
         wrap = 3u;
     }
     pwm_set_wrap(ir_slice, (uint16_t) (wrap - 1u));
-    ir_level = (uint16_t) (wrap / 3u);  // ~1/3 duty, typical for IR LEDs
+    // ~1/2 duty. 1/3 is the textbook figure, but that assumes a driver pushing hundreds of mA
+    // through the LED, where duty is a thermal budget. Driven from a GPIO the LED is nowhere near
+    // its limit, so the extra duty is free burst energy for the receiver's AGC (~1.5x average
+    // power). Still well inside what a 38 kHz demodulator expects.
+    ir_level = (uint16_t) (wrap / 2u);
     pwm_set_chan_level(ir_slice, ir_chan, 0);  // idle low (carrier off)
     pwm_set_enabled(ir_slice, true);
     ir_ready = true;
@@ -110,8 +123,20 @@ static void ir_build_frame(uint8_t protocol, uint32_t code) {
 // Runs in alarm (IRQ) context. Applies the next segment's carrier state and asks to be called
 // again after that segment's duration; stops (returns 0) once the whole frame has been sent.
 static int64_t ir_alarm_cb(alarm_id_t /*id*/, void* /*user*/) {
+    if (ir_in_gap) {
+        // The quiet time elapsed -- retransmit the same frame from segment 0 (still in ir_buf).
+        ir_in_gap = false;
+        ir_mark();
+        ir_idx = 1;
+        return (int64_t) ir_buf[0];
+    }
     if (ir_idx >= ir_len) {
         ir_space();
+        if (ir_frames_left > 0) {
+            ir_frames_left--;
+            ir_in_gap = true;
+            return (int64_t) IR_OUTPUT_FRAME_GAP_US;
+        }
         ir_busy = false;
         return 0;
     }
@@ -135,12 +160,15 @@ void ir_output_send(uint8_t protocol, uint32_t code) {
     ir_build_frame(protocol, code);
 
     ir_busy = true;
+    ir_in_gap = false;
+    ir_frames_left = (IR_OUTPUT_FRAMES > 1) ? (IR_OUTPUT_FRAMES - 1) : 0;
     ir_mark();       // segment 0 is always the leader mark
     ir_idx = 1;      // the alarm continues from segment 1
     ir_alarm_id = add_alarm_in_us(ir_buf[0], ir_alarm_cb, nullptr, false);
     if (ir_alarm_id <= 0) {
         ir_space();  // couldn't schedule -- abort cleanly
         ir_busy = false;
+        ir_frames_left = 0;
     }
 }
 

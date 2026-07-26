@@ -11,8 +11,13 @@ jobs:
   # existing one -- every other board is built by the two workflows above, unchanged.
   build-picow:
     uses: ./.github/workflows/build-picow.yml
+  # IR output. ADDITIVE in the same way: -DIR_OUTPUT_ENABLED is OFF by default, so this job only
+  # adds remapper_ir.uf2 + remapper_picow_ble_ir.uf2. Every stock .uf2 stays byte-identical.
+  # Without this job the web tool's IR download buttons 404 on releases/latest/download/.
+  build-ir:
+    uses: ./.github/workflows/build-ir.yml
   create-release:
-    needs: [ build-nrf52, build-rp2040, build-picow ]
+    needs: [ build-nrf52, build-rp2040, build-picow, build-ir ]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v8

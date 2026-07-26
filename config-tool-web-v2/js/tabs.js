@@ -709,6 +709,13 @@
       { file: "remapper_adafruit_feather_nrf52840.uf2", sub: "Adafruit Feather nRF52840" },
       { file: "remapper_seeed_xiao_nrf52840.uf2", sub: "Seeed XIAO nRF52840" },
     ] },
+    /* Infrared (IR) output = map any button to a TV/AV remote key (NEC & Samsung). Wire an IR LED to
+       the IR output pin (Settings tab; default GP15) and add an IR mapping. These builds add the IR
+       blaster on top of the matching board; the stock build is byte-identical and unchanged. */
+    { name: "Infrared (IR) output", chip: "RP2040 / Pico W", files: [
+      { file: "remapper_picow_ble_ir.uf2", sub: "Pico W · Bluetooth input + IR blaster" },
+      { file: "remapper_ir.uf2", sub: "Pico / Pico W · wired USB input + IR blaster" },
+    ] },
     { name: "Other boards", chip: "RP2040 / RP2350", files: [
       { file: "remapper_board.uf2", sub: "Custom JLCPCB board" },
       { file: "remapper_board_v7.uf2", sub: "Custom board v7" },

@@ -410,6 +410,29 @@
                                     </div>
                                 </div>
                                 <div class="mb-2 mt-4" style="font-size:0.8rem;color:var(--text-muted);">
+                                    <strong>Infrared (IR) output</strong> &mdash; map any button to a TV/AV remote key (NEC &amp; Samsung). Wire an IR LED to the <strong>IR output pin</strong> (set it in the Settings tab &mdash; default GP15) and add an <em>IR</em> mapping. These builds add the IR blaster on top of the matching board; everything else is unchanged.
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_picow_ble_ir.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_picow_ble_ir">
+                                            <span style="font-size:1.6rem;">&#128250;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Pico W &mdash; Bluetooth input + IR</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">RP2040 + BLE + IR &mdash; remapper_picow_ble_ir.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_ir.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_ir">
+                                            <span style="font-size:1.6rem;">&#128250;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Pico / Pico W &mdash; wired USB input + IR</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">RP2040 + IR &mdash; remapper_ir.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="mb-2 mt-4" style="font-size:0.8rem;color:var(--text-muted);">
                                     <strong>Onboard RGB LED (single board)</strong> &mdash; drives the onboard WS2812 RGB LED on GP16 as a mappable target. Map a key or layer to <em>RGB LED</em> and pick a color. Pick the build that matches your board &mdash; the color presets are identical; the firmware handles each board's LED byte order (RP2350-Zero and RP2040-Zero differ).
                                 </div>
                                 <div class="row g-3">

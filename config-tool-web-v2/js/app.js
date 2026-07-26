@@ -274,7 +274,11 @@ async function handleConn(act) {
       const config = window.HRX_TRANSLATE.appToConfig(APP, { forDevice: true });
       const res = await dev.saveToDevice(config);
       if (res && res.ok) {
-        const n = (config.mappings && config.mappings.length) || 0;
+        // Don't count the synthetic IR-pin mapping (0xFFFB00FF) — it is a settings carrier, not
+        // a user row, so reporting it makes one IR mapping read as "Saved 2 mappings".
+        const IRPIN = (window.HRX_TRANSLATE && window.HRX_TRANSLATE.IR_PIN_USAGE) || "0xfffb00ff";
+        const n = (config.mappings || [])
+          .filter((m) => String(m.target_usage).toLowerCase() !== IRPIN).length;
         let msg = "Saved " + n + " mappings to device";
         if (config.incomplete) {
           msg += " — " + config.incomplete + " unfinished row(s) NOT sent (pick their output, " +

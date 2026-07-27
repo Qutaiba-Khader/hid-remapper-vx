@@ -154,3 +154,54 @@ test("firmware<->web contract: the repeat carrier usage agrees with remapper.h",
   assert.match(irh, /IR_OUTPUT_REPEAT_MS\s+110/,
     "the firmware default must stay 110 ms or translate.js DEFAULTS.irRepeatMs drifts from it");
 });
+
+/* ---- catalog integrity ---------------------------------------------------------------
+   Every IR code is a NEC-family frame: the command half is a byte followed by its exact
+   bitwise inverse. That single check is what caught a corrupt entry (0xE0E040FB) in the
+   upstream database this catalog was built from, and it is the only automatic defence
+   against a typo'd code shipping as a button that silently does nothing. */
+test("every catalog code is a structurally valid NEC frame", () => {
+  let checked = 0;
+  for (const d of IR.DEVICES) {
+    for (const [label, code] of d.buttons) {
+      const c = code >>> 0;
+      const cmd = (c >>> 16) & 0xff;
+      const inv = (c >>> 24) & 0xff;
+      assert.equal(((~cmd) & 0xff), inv,
+        `${d.id} "${label}" = 0x${c.toString(16).padStart(8, "0")}: command byte 0x` +
+        `${cmd.toString(16)} but inverse byte is 0x${inv.toString(16)} (expected 0x` +
+        `${((~cmd) & 0xff).toString(16)}) — typo'd or not a NEC frame`);
+      checked++;
+    }
+  }
+  assert.ok(checked > 100, `expected a populated catalog, only checked ${checked}`);
+});
+
+test("no duplicate codes within a device, and Samsung keeps its hardware-confirmed anchors", () => {
+  for (const d of IR.DEVICES) {
+    const seen = new Map();
+    for (const [label, code] of d.buttons) {
+      const c = code >>> 0;
+      assert.ok(!seen.has(c),
+        `${d.id}: "${label}" and "${seen.get(c)}" share code 0x${c.toString(16)}`);
+      seen.set(c, label);
+    }
+  }
+  // confirmed against the owner's real hardware / published dumps — these must never drift
+  const sam = IR.DEVICES.find((d) => d.id === "samsung-tv").buttons;
+  const get = (n) => (sam.find((b) => b[0] === n) || [])[1] >>> 0;
+  assert.equal(get("Power"), 0xfd020707);
+  assert.equal(get("Volume +"), 0xf8070707);   // verified live on the S90C
+  assert.equal(get("1"), 0xfb040707);
+  assert.equal(get("OK / Enter"), 0x97680707);
+});
+
+test("every NEC device declares a single consistent address (low 16 bits)", () => {
+  for (const d of IR.DEVICES) {
+    if (d.proto !== 1 || !d.buttons.length) continue;   // 1 = NEC
+    const addrs = new Set(d.buttons.map(([, c]) => (c >>> 0) & 0xffff));
+    assert.equal(addrs.size, 1,
+      `${d.id} mixes NEC addresses: ${[...addrs].map((a) => "0x" + a.toString(16)).join(", ")}` +
+      ` — a device's buttons all come from one remote, so this means codes from two remotes got mixed`);
+  }
+});

@@ -108,6 +108,19 @@ void set_gpio_inout_masks(uint32_t in_mask, uint32_t out_mask) {
     gpio_out_mask = (out_mask & ~in_mask) & gpio_valid_pins_mask;
     // we treat all pins except the output ones as input so that the monitor works
     gpio_in_mask = gpio_valid_pins_mask & ~gpio_out_mask;
+#ifdef IR_OUTPUT_ENABLED
+    // ...but the IR pin is driven by PWM, so it is neither. Left in gpio_in_mask, read_gpio()
+    // samples the 38 kHz carrier and reports it as a GPIO input (it shows up in the Monitor and
+    // churns set_input_state on every frame), and set_gpio_dir() puts a pull-up on the pin that
+    // drives the LED. Exclude it from both masks.
+    {
+        uint8_t ir_pin = ir_output_get_pin();
+        if (ir_pin <= 29) {
+            gpio_in_mask &= ~(1u << ir_pin);
+            gpio_out_mask &= ~(1u << ir_pin);
+        }
+    }
+#endif
     set_gpio_dir_pending = true;
 }
 

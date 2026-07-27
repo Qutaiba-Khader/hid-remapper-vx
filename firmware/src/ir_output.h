@@ -60,3 +60,9 @@ void ir_output_set_pin(uint8_t pin);
 // Fire one IR frame for `protocol` carrying `code` (LSB-first). Non-blocking; drops the request
 // if a frame is still being transmitted.
 void ir_output_send(uint8_t protocol, uint32_t code);
+
+// The GPIO currently driving the IR LED, or 0xFF if IR output is not set up. The GPIO scanner
+// must exclude this pin: main.cc treats every pin that is not a declared GPIO *output* as an
+// input "so that the monitor works", which would otherwise sample our 38 kHz carrier (the pin
+// shows up in the Monitor as GPIO n) and put a pull-up on the IR drive pin.
+uint8_t ir_output_get_pin();

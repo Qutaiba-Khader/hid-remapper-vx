@@ -191,6 +191,14 @@
      it and it silently did nothing. Save now refuses to ship one. */
   window.HRX_MON_STUCK = window.HRX_MON_STUCK || new Set();
 
+  // Keyboard + consumer usages arrive as HID ARRAY ranges, and the firmware never sends their
+  // key-up (remapper.cc ~L1707), so min===max===1 is the only reading they can ever have. They
+  // must be exempt from the constant-value test below or every key looks like a vendor field.
+  function isArrayRangeUsage(usage) {
+    const page = (parseInt(usage, 16) >>> 16) & 0xffff;
+    return page === 0x0007 || page === 0x000c;
+  }
+
   /* Everything the Monitor has actually SEEN, exposed to the usage picker. These are the
      controls you just pressed on the hardware in front of you — far more useful for building
      a mapping than scrolling a catalog of every usage in existence. */
@@ -305,7 +313,13 @@
       // 0xffa00008 on one mouse sits at min=max=1 forever, so a mapping on it can NEVER
       // trigger — its "press" happened once at enumeration and never again. The tool used to
       // happily offer it and then silently do nothing.
-      const stuck = r.seen > 40 && r.min === r.max && r.min !== 0;
+      // ...but an ARRAY-range input can never report min=0, so this test declared every key on
+      // a keyboard/remote a vendor field. remapper.cc (~L1707) hardcodes monitor_usage(usage, 1)
+      // for them: "for array range inputs, key-up events (value=0) don't show up in the monitor".
+      // Holding Up arrow past `seen > 40` therefore flagged it, the picker then HID it from
+      // "Pressed on your device", and Save refused to ship it. Keyboard (0x0007) and consumer
+      // (0x000C) are those array ranges; vendor pages like 0xFFA0 still get caught.
+      const stuck = r.seen > 40 && r.min === r.max && r.min !== 0 && !isArrayRangeUsage(r.usage);
       if (stuck) window.HRX_MON_STUCK.add(r.usage); // remembered so Save can refuse to ship it
       tr.classList.toggle("mon-stuck", !!stuck);
       const nameCell = tr.children[1];

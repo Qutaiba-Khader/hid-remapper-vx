@@ -105,6 +105,10 @@ void ir_output_init() {
     ir_output_set_pin(IR_OUTPUT_DEFAULT_PIN);
 }
 
+uint8_t ir_output_get_pin() {
+    return ir_ready ? ir_pin : 0xFF;
+}
+
 // NEC and Samsung are both 38 kHz pulse-distance: a leader, then 32 data bits LSB-first where a
 // bit is a fixed 560us mark and a space of 560us (0) or 1690us (1), then a 560us stop mark. They
 // differ only in the leader (NEC 9000/4500, Samsung 4500/4500).

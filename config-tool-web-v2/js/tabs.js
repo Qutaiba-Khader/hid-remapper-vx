@@ -366,10 +366,13 @@
   }
 
   /* ---------------- MACROS (32 slots, accordion) ----------------
-     READ-ONLY for now: this shows the macros actually held in APP.macros (i.e. what the
-     device returned on Load, or what an imported JSON carried), NOT sample data. Editing
-     is not built yet — but the data round-trips untouched through translate.js, so a
-     Load -> edit mappings -> Save cycle preserves the device's macros exactly. */
+     Fully editable: add/remove/reorder steps, several keys per step, clear, and copy to another
+     slot. What you see is what the device returned on Load or what an imported JSON carried —
+     never sample data. The data also round-trips untouched through translate.js, so a
+     Load -> edit mappings -> Save cycle preserves macros you did not touch.
+     (This comment used to say "read-only, editing is not built yet"; that was true before the
+     editor landed and then sat here lying about it. If you change what this tab can do, change
+     this too — a stale comment is how the next session concludes a feature is missing.) */
   let openMacro = -1;
 
   /* A macro is a SEQUENCE OF STEPS. Each step is a list of usages pressed at the same instant, and

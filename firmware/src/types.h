@@ -165,7 +165,8 @@ struct reverse_mapping_t {
     bool led_prev_active = false;  // runtime-only edge state for RGB-LED targets
 #endif
 #ifdef IR_OUTPUT_ENABLED
-    bool ir_prev_active = false;  // runtime-only edge state for IR targets (fire once per press)
+    bool ir_prev_active = false;   // runtime-only edge state for IR targets (fire on key-down)
+    uint64_t ir_last_send = 0;     // us; when this target last STARTED a frame, for hold-repeat
 #endif
     std::vector<out_usage_def_t> our_usages;
     std::vector<map_source_t> sources;

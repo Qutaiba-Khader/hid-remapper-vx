@@ -91,6 +91,7 @@ const APP = {
     gpioOutputMode: 0,       // 0 = push-pull, 1 = open-drain
     ignoreAuthDevInputs: false,
     irOutputPin: 15,         // IR LED GPIO (only persisted when the config uses IR)
+    irRepeatMs: 110,         // IR hold-to-repeat interval, ms; 0 = once per press
   },
   mappings: [],
 };

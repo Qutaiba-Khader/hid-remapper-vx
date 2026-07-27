@@ -37,13 +37,24 @@ const MIDI_USAGE_PAGE = 0xFFF70000;
 const RGB_LED_USAGE_PAGE = 0xFFFA0000;  // low 16 bits = RGB565 color
 const IR_USAGE_PAGE = 0xFFFB0000;       // low byte = IR protocol; code lives in the mapping's scaling
 const IR_PIN_USAGE = '0xfffb00ff';      // set-pin pseudo-mapping (scaling = the GPIO)
+const IR_REPEAT_USAGE = '0xfffb00fe';   // hold-repeat pseudo-mapping (scaling = interval in ms)
+// Sub-usages on the IR page that carry CONFIG, not a protocol. This tool doesn't offer an editor
+// for the repeat interval (the v2 tool does), but it must still recognise it: treated as a send
+// target it would get an IR command editor and a code written over the interval, and rendered as
+// a row it would look like a stray mapping the user then deletes. Skipping it in the UI while
+// leaving it in config.mappings means a load->save here preserves it untouched.
+const IR_CONFIG_USAGES = [IR_PIN_USAGE, IR_REPEAT_USAGE];
 const BUTTON_USAGE_PAGE = 0x00090000;
 
-// An IR *send* target (an IR-page target that isn't the set-pin pseudo-mapping).
+function is_ir_config_usage(usage) {
+    return IR_CONFIG_USAGES.includes(String(usage).toLowerCase());
+}
+
+// An IR *send* target (an IR-page target that isn't one of the config pseudo-mappings).
 function is_ir_target(usage) {
     const n = parseInt(usage, 16) >>> 0;
     const p = (n >>> 16) === 0xfffb ? (n & 0xff) : 0;
-    return p !== 0 && p !== 0xff;
+    return p !== 0 && p !== 0xff && p !== 0xfe;
 }
 
 const RESET_INTO_BOOTSEL = 1;
@@ -663,7 +674,7 @@ function set_config_ui_state() {
 function set_mappings_ui_state() {
     clear_children(document.getElementById('mappings'));
     for (const mapping of config['mappings']) {
-        if (mapping['target_usage'] === IR_PIN_USAGE) continue; // the IR pin is a Setting, not a row
+        if (is_ir_config_usage(mapping['target_usage'])) continue; // IR pin/repeat are Settings, not rows
         add_mapping(mapping);
     }
     update_ir_pin_input();

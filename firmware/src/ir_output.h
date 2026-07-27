@@ -34,13 +34,21 @@
 #define IR_OUTPUT_DEFAULT_PIN 15
 #endif
 
-// Frames sent per key-down. A real remote transmits continuously while the button is held; we
-// fire once on the rising edge, and a lone frame is the classic "the TV ignores it sometimes"
-// bug -- receivers with slow AGC can swallow the first burst. 3 costs ~300 ms of air time, during
-// which further presses are dropped (ir_output_send() is busy); lower it to 2 if you machine-gun
-// a volume key.
+// Frames sent on the initial key-down. A lone frame is the classic "the TV ignores it sometimes"
+// bug -- receivers with slow AGC can swallow the first burst. This was 3 before hold-repeat
+// existed; 2 is enough now that holding retransmits, and it keeps a tap's air time down (each
+// frame is ~45-80 ms, during which further sends are dropped because ir_output_send() is busy).
 #ifndef IR_OUTPUT_FRAMES
-#define IR_OUTPUT_FRAMES 3
+#define IR_OUTPUT_FRAMES 2
+#endif
+
+// Hold-to-repeat interval, in ms. A real remote retransmits every ~110 ms for as long as the
+// button is down -- that is what makes volume ramp and channel-surf work. Unlike every other
+// output, IR cannot inherit the host's key-repeat: a normal mapping just holds its output bit at
+// 1 and the OS repeats it, but IR is fire-and-forget pulses with no "held" state to report, so
+// the repeat has to happen here. Set to 0 to disable and fire once per press.
+#ifndef IR_OUTPUT_REPEAT_MS
+#define IR_OUTPUT_REPEAT_MS 110
 #endif
 
 // Quiet time between repeated frames (us). NEC repeats every 110 ms from frame start and a frame
@@ -57,9 +65,19 @@ void ir_output_init();
 // UART) -- the previous/default pin stays active and IR keeps working on it.
 void ir_output_set_pin(uint8_t pin);
 
-// Fire one IR frame for `protocol` carrying `code` (LSB-first). Non-blocking; drops the request
-// if a frame is still being transmitted.
-void ir_output_send(uint8_t protocol, uint32_t code);
+// Transmit `code` (LSB-first) for `protocol`. `frames` = how many times to repeat the frame back
+// to back; 0 means IR_OUTPUT_FRAMES. Non-blocking.
+// Returns TRUE if transmission started, FALSE if it was dropped because a frame is still going
+// out. The caller must not advance its repeat clock on a false return, or a repeat that collided
+// with the tail of the previous burst is silently lost for a whole interval.
+bool ir_output_send(uint8_t protocol, uint32_t code, uint8_t frames = 0);
+
+// Hold-to-repeat interval in ms, settable from the config (pseudo-mapping IR_CONFIG_REPEAT_USAGE,
+// surfaced as an "IR repeat" field in the web tool's Settings). 0 = fire once per press.
+// ir_output_init() resets it to IR_OUTPUT_REPEAT_MS, so a config with no repeat mapping gets the
+// firmware default rather than whatever the previously-loaded config happened to set.
+void ir_output_set_repeat_ms(uint16_t ms);
+uint16_t ir_output_get_repeat_ms();
 
 // The GPIO currently driving the IR LED, or 0xFF if IR output is not set up. The GPIO scanner
 // must exclude this pin: main.cc treats every pin that is not a declared GPIO *output* as an

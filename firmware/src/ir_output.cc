@@ -109,6 +109,17 @@ uint8_t ir_output_get_pin() {
     return ir_ready ? ir_pin : 0xFF;
 }
 
+// Hold-to-repeat interval. Read by process_mapping(); ir_output itself never repeats on its own.
+static uint16_t ir_repeat_ms = IR_OUTPUT_REPEAT_MS;
+
+void ir_output_set_repeat_ms(uint16_t ms) {
+    ir_repeat_ms = ms;
+}
+
+uint16_t ir_output_get_repeat_ms() {
+    return ir_repeat_ms;
+}
+
 // NEC and Samsung are both 38 kHz pulse-distance: a leader, then 32 data bits LSB-first where a
 // bit is a fixed 560us mark and a space of 560us (0) or 1690us (1), then a 560us stop mark. They
 // differ only in the leader (NEC 9000/4500, Samsung 4500/4500).
@@ -154,18 +165,21 @@ static int64_t ir_alarm_cb(alarm_id_t /*id*/, void* /*user*/) {
     return (int64_t) dur;  // reschedule ~dur us from now
 }
 
-void ir_output_send(uint8_t protocol, uint32_t code) {
+bool ir_output_send(uint8_t protocol, uint32_t code, uint8_t frames) {
     if (!ir_ready || ir_busy) {
-        return;  // not set up, or a frame is still going out -- drop this one
+        return false;  // not set up, or a frame is still going out -- drop this one
     }
     if (protocol != IR_PROTO_NEC && protocol != IR_PROTO_SAMSUNG) {
-        return;
+        return false;
+    }
+    if (frames == 0) {
+        frames = IR_OUTPUT_FRAMES;
     }
     ir_build_frame(protocol, code);
 
     ir_busy = true;
     ir_in_gap = false;
-    ir_frames_left = (IR_OUTPUT_FRAMES > 1) ? (IR_OUTPUT_FRAMES - 1) : 0;
+    ir_frames_left = (frames > 1) ? (frames - 1) : 0;
     ir_mark();       // segment 0 is always the leader mark
     ir_idx = 1;      // the alarm continues from segment 1
     ir_alarm_id = add_alarm_in_us(ir_buf[0], ir_alarm_cb, nullptr, false);
@@ -173,7 +187,9 @@ void ir_output_send(uint8_t protocol, uint32_t code) {
         ir_space();  // couldn't schedule -- abort cleanly
         ir_busy = false;
         ir_frames_left = 0;
+        return false;
     }
+    return true;
 }
 
 #endif  // IR_OUTPUT_ENABLED

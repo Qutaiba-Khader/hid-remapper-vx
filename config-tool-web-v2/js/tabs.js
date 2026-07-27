@@ -21,6 +21,7 @@
     gpioDebounce: (s) => { s.gpioDebounce = DEF.gpioDebounce; },
     macroEntryDuration: (s) => { s.macroEntryDuration = DEF.macroEntryDuration; },
     irOutputPin: (s) => { s.irOutputPin = DEF.irOutputPin; },
+    irRepeatMs: (s) => { s.irRepeatMs = DEF.irRepeatMs; },
     passthrough: (s) => { s.passthrough = new Array(8).fill(true); }, // 0b11111111
     inputLabels: (s) => { s.inputLabels = DEF.inputLabels; },
     flags: (s) => {
@@ -100,6 +101,11 @@
           num("irOutputPin", s.irOutputPin == null ? DEF.irOutputPin : s.irOutputPin, 0, 29,
               `GPIO 0–29 (default ${DEF.irOutputPin})`))}
 
+        ${card("irRepeatMs", "IR hold-to-repeat",
+          "How often an IR button retransmits while you hold it — this is what makes volume ramp and channel-surf work. A real remote uses about 110 ms. Set 0 to send once per press. Every other output gets its repeat from the host (a held key just stays down); IR has no held state, so it repeats here.",
+          num("irRepeatMs", s.irRepeatMs == null ? DEF.irRepeatMs : s.irRepeatMs, 0, 2000,
+              `milliseconds, 0 = off (default ${DEF.irRepeatMs})`))}
+
         ${card("passthrough", "Unmapped passthrough",
           "Pass keys with no mapping straight through, per layer. All layers are on by default — switching a layer off silences every unmapped key on it.",
           passToggles)}
@@ -148,6 +154,7 @@
     numField("gpioDebounce", "gpioDebounce", 0, 255);
     numField("macroEntryDuration", "macroEntryDuration", 1, 255);
     numField("irOutputPin", "irOutputPin", 0, 29);
+    numField("irRepeatMs", "irRepeatMs", 0, 2000);
 
     $$('[data-pass]', container).forEach((t) => t.addEventListener("click", () => {
       const i = +t.dataset.pass;

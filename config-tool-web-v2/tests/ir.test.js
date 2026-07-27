@@ -89,3 +89,68 @@ test("firmware<->web contract: page + pin usage agree with remapper.h", () => {
   assert.equal(IR.PROTO.NEC, 1);
   assert.equal(IR.PROTO.SAMSUNG, 2);
 });
+
+/* ---- hold-to-repeat (0xFFFB00FE carries the interval, like 0xFFFB00FF carries the pin) ---- */
+
+test("the repeat carrier is NOT a send target (0xFE, like 0xFF, is config not a protocol)", () => {
+  // If this ever returns true the tool renders an IR command editor on the settings carrier and
+  // appToConfig writes a bogus code into the interval.
+  assert.equal(T.isIrTarget("0xfffb00fe"), false);
+  assert.equal(T.isIrConfigUsage("0xfffb00fe"), true);
+  assert.equal(T.isIrConfigUsage("0xfffb00ff"), true);
+  assert.equal(T.isIrConfigUsage(SAMSUNG), false);
+});
+
+test("whole-config round-trip preserves the hold-repeat interval", () => {
+  const app = T.configToApp({
+    version: 18,
+    mappings: [
+      { source_usage: "0x00070052", target_usage: SAMSUNG, scaling: 0xf8070707 | 0, layers: [0] },
+      { source_usage: "0x00000000", target_usage: "0xfffb00ff", scaling: 15, layers: [] },
+      { source_usage: "0x00000000", target_usage: "0xfffb00fe", scaling: 250, layers: [] },
+    ],
+  }, undefined, () => 1);
+
+  assert.equal(app.mappings.length, 1, "both config carriers must be filtered out of the rows");
+  assert.equal(app.settings.irOutputPin, 15);
+  assert.equal(app.settings.irRepeatMs, 250);
+
+  const back = T.appToConfig(app, { forDevice: true });
+  const rep = back.mappings.find((m) => m.target_usage === "0xfffb00fe");
+  assert.ok(rep, "the repeat carrier must be written back");
+  assert.equal(rep.scaling, 250, "interval must survive RAW — not ×1000 like a normal scale");
+  assert.equal(rep.source_usage, "0x00000000");
+});
+
+test("repeat interval defaults when the device config predates the feature", () => {
+  const app = T.configToApp({
+    version: 18,
+    mappings: [
+      { source_usage: "0x00070052", target_usage: SAMSUNG, scaling: 0xf8070707 | 0, layers: [0] },
+      { source_usage: "0x00000000", target_usage: "0xfffb00ff", scaling: 15, layers: [] },
+    ],
+  }, undefined, () => 1);
+  assert.equal(app.settings.irRepeatMs, 110, "an older config must inherit the firmware default");
+});
+
+test("repeat of 0 (once per press) round-trips and is not mistaken for 'unset'", () => {
+  const app = T.configToApp({
+    version: 18,
+    mappings: [
+      { source_usage: "0x00070052", target_usage: SAMSUNG, scaling: 1, layers: [0] },
+      { source_usage: "0x00000000", target_usage: "0xfffb00fe", scaling: 0, layers: [] },
+    ],
+  }, undefined, () => 1);
+  assert.equal(app.settings.irRepeatMs, 0);
+  const back = T.appToConfig(app, { forDevice: true });
+  assert.equal(back.mappings.find((m) => m.target_usage === "0xfffb00fe").scaling, 0);
+});
+
+test("firmware<->web contract: the repeat carrier usage agrees with remapper.h", () => {
+  const h = FW("remapper.h");
+  assert.match(h, /IR_CONFIG_REPEAT_USAGE\s*\(IR_USAGE_PAGE\s*\|\s*0xFE\)/,
+    "remapper.h must define the repeat carrier as page|0xFE to match translate.js");
+  const irh = FW("ir_output.h");
+  assert.match(irh, /IR_OUTPUT_REPEAT_MS\s+110/,
+    "the firmware default must stay 110 ms or translate.js DEFAULTS.irRepeatMs drifts from it");
+});

@@ -440,6 +440,10 @@ void set_mapping_from_config() {
     active_ports_mask = 0;
     uint32_t gpio_in_mask_ = 0;
     uint32_t gpio_out_mask_ = 0;
+#ifdef IR_OUTPUT_ENABLED
+    // Default first; a IR_CONFIG_REPEAT_USAGE mapping in the loop below overrides it.
+    ir_output_set_repeat_ms(IR_OUTPUT_REPEAT_MS);
+#endif
 
     for (auto const& mapping : config_mappings) {
 #ifdef IR_OUTPUT_ENABLED
@@ -448,6 +452,14 @@ void set_mapping_from_config() {
         // ir_output_set_pin() is idempotent so re-applying the same pin is a no-op.
         if (mapping.target_usage == IR_CONFIG_PIN_USAGE) {
             ir_output_set_pin((uint8_t) mapping.scaling);
+            continue;
+        }
+        // Same idea for the hold-repeat interval (ms; 0 = fire once per press). Defaulted before
+        // this loop, so removing the mapping restores the firmware default instead of leaving
+        // whatever the previous config set.
+        if (mapping.target_usage == IR_CONFIG_REPEAT_USAGE) {
+            int32_t ms = mapping.scaling;
+            ir_output_set_repeat_ms((uint16_t) ((ms < 0) ? 0 : ((ms > 0xFFFF) ? 0xFFFF : ms)));
             continue;
         }
 #endif
@@ -1387,8 +1399,23 @@ void process_mapping(bool auto_repeat) {
                         break;
                     }
                 }
-                if (ir_active && !rev_map.ir_prev_active) {
-                    ir_output_send(target & 0xFF, ir_code);  // protocol in the target's low byte
+                if (ir_active) {
+                    const uint16_t repeat_ms = ir_output_get_repeat_ms();
+                    if (!rev_map.ir_prev_active) {
+                        // key-down: the initial burst (IR_OUTPUT_FRAMES frames)
+                        if (ir_output_send(target & 0xFF, ir_code)) {  // proto = target's low byte
+                            rev_map.ir_last_send = now;
+                        }
+                    } else if ((repeat_ms > 0) &&
+                               (now - rev_map.ir_last_send >= (uint64_t) repeat_ms * 1000)) {
+                        // still held: retransmit ONE frame, the way a real remote does. Only
+                        // advance the clock if it actually went out -- a repeat that collided
+                        // with the tail of the previous burst must retry on the next tick, not
+                        // be dropped for a whole interval.
+                        if (ir_output_send(target & 0xFF, ir_code, 1)) {
+                            rev_map.ir_last_send = now;
+                        }
+                    }
                 }
                 rev_map.ir_prev_active = ir_active;
                 continue;

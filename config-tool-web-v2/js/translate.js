@@ -39,6 +39,7 @@
     gpioOutputMode: 0,
     inputLabels: 0,
     irOutputPin: 15,     // IR LED GPIO (firmware default; only written when the config uses IR)
+    irRepeatMs: 110,     // hold-to-repeat interval; 0 = fire once per press (firmware default)
   };
 
   // cosmetic tint id <-> hex (row background tint only; not a device field per se, stored as config.color)
@@ -66,14 +67,23 @@
   /* ---- IR output (page 0xFFFB) ----
      Unlike every other target, an IR mapping carries a 32-bit CODE in the `scaling` field (raw, NOT
      ×1000) — the protocol lives in the target's low byte (0xFFFB0001 = NEC, 0xFFFB0002 = Samsung).
-     The global IR LED pin rides a synthetic mapping (0xFFFB00FF, scaling = the GPIO). So IR is the
-     one target that must bypass the scale↔scaling ×1000 conversion below. */
+     The global IR LED pin rides a synthetic mapping (0xFFFB00FF, scaling = the GPIO), and the
+     hold-repeat interval rides another (0xFFFB00FE, scaling = ms). So IR is the one target that
+     must bypass the scale↔scaling ×1000 conversion below.
+     Sub-usages 0xFE and 0xFF are CONFIG CARRIERS, not protocols: they are never rows, never
+     pickable, and must never be treated as an IR target. */
   const IR_PIN_USAGE = "0xfffb00ff";
+  const IR_REPEAT_USAGE = "0xfffb00fe";
+  const IR_CONFIG_USAGES = [IR_PIN_USAGE, IR_REPEAT_USAGE];
   const irProto = (u) => {                      // protocol id in an IR target, or 0 if not IR
     const n = parseInt(normHex(u), 16) >>> 0;
     return (n >>> 16) === 0xfffb ? (n & 0xff) : 0;
   };
-  const isIrTarget = (u) => { const p = irProto(u); return p !== 0 && p !== 0xff; };
+  const isIrTarget = (u) => {
+    const p = irProto(u);
+    return p !== 0 && p !== 0xff && p !== 0xfe;
+  };
+  const isIrConfigUsage = (u) => IR_CONFIG_USAGES.indexOf(normHex(u)) !== -1;
 
 
   /* ---- expression numbers are FIXED POINT on the device ----
@@ -192,16 +202,21 @@
       mappings.push(appMappingToConfig(m));
     });
 
-    // Global IR output pin -> a synthetic mapping (0xFFFB00FF, scaling = pin), appended once, ONLY
-    // when the config actually uses IR. Non-IR configs stay identical to the stock tool's output.
+    // Global IR settings -> synthetic mappings (pin = 0xFFFB00FF, hold-repeat ms = 0xFFFB00FE),
+    // appended once, ONLY when the config actually uses IR. Non-IR configs stay identical to the
+    // stock tool's output.
     if (mappings.some((cm) => isIrTarget(cm.target_usage))) {
-      mappings.push({
+      const irCfg = (usage, val) => ({
         source_usage: "0x00000000",
-        target_usage: IR_PIN_USAGE,
+        target_usage: usage,
         layers: [], sticky: false, tap: false, hold: false,
-        scaling: (s.irOutputPin == null ? DEFAULTS.irOutputPin : toInt(s.irOutputPin)) | 0,
+        scaling: val | 0,
         source_port: 0, target_port: 0,
       });
+      mappings.push(irCfg(IR_PIN_USAGE,
+        s.irOutputPin == null ? DEFAULTS.irOutputPin : toInt(s.irOutputPin)));
+      mappings.push(irCfg(IR_REPEAT_USAGE,
+        s.irRepeatMs == null ? DEFAULTS.irRepeatMs : toInt(s.irRepeatMs)));
     }
 
     const config = {
@@ -235,10 +250,11 @@
 
   function configToApp(config, base, uid) {
     base = base || {};
-    // Pull the synthetic IR-pin mapping out into settings; it is not a user row.
+    // Pull the synthetic IR config mappings out into settings; they are not user rows.
     const raw0 = config.mappings || [];
     const pinMap = raw0.find((cm) => normHex(cm.target_usage) === IR_PIN_USAGE);
-    const raw = raw0.filter((cm) => normHex(cm.target_usage) !== IR_PIN_USAGE);
+    const repeatMap = raw0.find((cm) => normHex(cm.target_usage) === IR_REPEAT_USAGE);
+    const raw = raw0.filter((cm) => !isIrConfigUsage(cm.target_usage));
     const mappings = raw.map((cm) => configMappingToApp(cm, uid));
 
     // restore which rows were switched off (additive, web-only)
@@ -262,6 +278,7 @@
       inputLabels: toInt(config.input_labels),
       normalizeGamepad: config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs,
       irOutputPin: pinMap ? (toInt(pinMap.scaling) & 0xff) : DEFAULTS.irOutputPin,
+      irRepeatMs: repeatMap ? (toInt(repeatMap.scaling) & 0xffff) : DEFAULTS.irRepeatMs,
     });
 
     return Object.assign({}, base, {
@@ -283,7 +300,7 @@
     appMappingToConfig, configMappingToApp,
     exprToDevice, exprToApp,
     appToConfig, configToApp,
-    isIrTarget, irProto, IR_PIN_USAGE,
+    isIrTarget, irProto, IR_PIN_USAGE, IR_REPEAT_USAGE, isIrConfigUsage,
   };
 
   if (typeof window !== "undefined") window.HRX_TRANSLATE = API;

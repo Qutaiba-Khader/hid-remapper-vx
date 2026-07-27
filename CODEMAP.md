@@ -34,7 +34,10 @@ The firmware is one codebase compiled into several executables. Board/role-speci
 | Web v2: tests | `config-tool-web-v2/tests/` | `flow.test.js` (whole user journey vs a fake device), `contract.test.js` (reads the firmware source), `no-dummy-data.test.js`, `ui-guards.test.js` |
 | Bluetooth input (Pico W) | `src/ble/ble_host.c`, `src/ble/ble_bridge.c`, `src/remapper_picow_ble.cc` | BTstack on core 1, engine + TinyUSB device on core 0; they meet ONLY in `ble_bridge.c`. Branch `feature/picow-bt-input`. **Read [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) before touching it** — the flash collision and the BOOTSEL brick are both live landmines. |
 | Persisted config + commands | `src/config.cc` | `CONFIG_VERSION` (**18**), config get/set command handlers |
-| Custom usage pages | `src/remapper.h` | `RGB_LED_USAGE_PAGE 0xFFFA0000`, GPIO/MACRO/EXPR/… page defines |
+| Custom usage pages | `src/remapper.h` | `RGB_LED_USAGE_PAGE 0xFFFA0000`, `IR_USAGE_PAGE 0xFFFB0000`, GPIO/MACRO/EXPR/… page defines |
+| IR output driver | `src/ir_output.cc` | `ir_output_send()`, `ir_output_set_pin()`, `ir_output_get_repeat_ms()`, `ir_pin_reserved()`, `ir_alarm_cb()` |
+| IR engine hooks | `src/remapper.cc` | pin/repeat read in `set_mapping_from_config()`; fire + hold-repeat in `process_mapping()` (`#ifdef IR_OUTPUT_ENABLED`) |
+| IR code catalog (web) | `config-tool-web{,-v2/js}/ir-codes.js` | `DEVICES` (Samsung/Xbox/LG), `sam()`, `isIrTarget()` — **the two copies must stay identical** |
 | RGB LED driver | `src/main.cc` | `rgb565_to_wire()`, `rgb_led_init()`, `write_rgb_led()`, `RGB_LED_BRIGHTNESS` (64), `#ifdef RGB_LED_ENABLED` block |
 | RGB LED presets (web) | `config-tool-web/usages.js` | `0xfffa****` entries, `class:'rgb_led_usage'` |
 | WS2812 PIO program | `src/ws2812.pio` | `ws2812_program`, `ws2812_program_init` |
@@ -92,6 +95,7 @@ The firmware is one codebase compiled into several executables. Board/role-speci
 | `RGB_LED_ENABLED` | compile the WS2812 driver, `RGB_LED_PIN=16` | `remapper`, `remapper_dual_a` |
 | `RGB_LED_GRB` | GRB wire order (RP2040-Zero); OFF = RGB (RP2350-Zero) | same |
 | `ZERO_DUAL_SERIAL` | dual UART → GP8/9/10/11 (RP2040-Zero edge pins) | `remapper_dual_a`, `remapper_dual_b` |
+| `IR_OUTPUT_ENABLED` | compile the IR driver (PWM carrier, NEC + Samsung), default pin GP15 | `remapper`, `remapper_picow_ble` |
 
 **Golden rule:** default (all OFF) builds are **byte-identical to upstream**. Add features as opt-in options, never by editing the default path. Firmware only builds in **CI** (`.github/workflows/build-rp2040.yml`) — each variant in its own `build-*` dir, renamed on `mv`. Release: push tag `rYYYY-MM-DD` → `release.yml` draft → `gh release edit <tag> --draft=false --latest`.
 
@@ -136,4 +140,18 @@ grep -n "build-\|mv build" .github/workflows/build-rp2040.yml
 
 ## Usage-page registry
 
-Custom output pages are listed in [`CLAUDE.md`](CLAUDE.md) ("Custom output usage pages") and defined in `firmware/src/remapper.h`. Currently `0xFFF1`–`0xFFFA` are used; **next free is `0xFFFB`**. Verify in `remapper.h` before claiming one.
+Custom output pages are listed in [`CLAUDE.md`](CLAUDE.md) ("Custom output usage pages") and defined in `firmware/src/remapper.h`. Currently `0xFFF1`–`0xFFFB` are used; **next free is `0xFFFC`**. Verify in `remapper.h` before claiming one.
+
+**`0xFFFB` (IR) has reserved sub-usages.** The low byte is normally a protocol id, but `0xFE` and
+`0xFF` are **config carriers**, not protocols — they are pseudo-mappings whose `scaling` holds a
+setting, and they must never be rendered as a row, offered in the picker, or treated as a send
+target. Both web tools exclude them (`isIrConfigUsage` in v2's `translate.js`, `is_ir_config_usage`
+in v1's `code.js`). Adding a third carrier means updating **both** tools, or the one that doesn't
+know it will render it as a stray row and overwrite the setting with an IR code.
+
+| Sub-usage | Meaning | `scaling` holds |
+| --- | --- | --- |
+| `0xFFFB0001` | send, NEC protocol | the 32-bit IR code (**raw**, not ×1000) |
+| `0xFFFB0002` | send, Samsung protocol | the 32-bit IR code (**raw**) |
+| `0xFFFB00FE` | config: hold-to-repeat | interval in ms (0 = once per press) |
+| `0xFFFB00FF` | config: output pin | the GPIO number |

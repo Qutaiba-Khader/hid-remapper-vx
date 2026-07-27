@@ -38,12 +38,14 @@ CI (`.github/workflows/build-rp2040.yml`) builds each variant in its own dir and
 | Custom JLCPCB boards | `PICO_BOARD=remapper_v7`/`v8`/… | `remapper_board*.uf2` |
 | nRF52840 (Bluetooth) | `build-nrf52.yml` | see `BLUETOOTH.md` |
 | **Pico W — Bluetooth INPUT** | `PICO_BOARD=pico_w cmake ..`, `make remapper_picow_ble` (`build-picow.yml`) | `remapper_picow_ble.uf2` — see [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) |
+| **IR output** (wired USB) | `cmake .. -DIR_OUTPUT_ENABLED=ON` (`build-ir.yml`) | `remapper_ir.uf2` |
+| **IR output** (Pico W + Bluetooth) | `PICO_BOARD=pico_w cmake .. -DIR_OUTPUT_ENABLED=ON` | `remapper_picow_ble_ir.uf2` |
 
-> **`remapper_picow_ble.uf2` is NOT built by master's release pipeline yet.** It lives on the branch
-> `feature/picow-bt-input` and its `.uf2` was **uploaded by hand** to the `r2026-07-06` release. The
-> web tool links it, so the file must stay on `latest`. `config-tool-web-v2/tests/firmware-links.test.js`
-> whitelists it explicitly — **delete that whitelist entry the day `build-picow` joins `release.yml`**,
-> or a forgotten manual upload becomes a silent 404.
+> **All variants above are now built by `release.yml`** — `build-nrf52`, `build-rp2040`, `build-picow`
+> and `build-ir` are all wired in, so pushing a tag produces every `.uf2` the web tools link. (Both
+> the Pico W Bluetooth and IR builds went through a hand-upload phase before this; nothing is
+> hand-uploaded any more.) `config-tool-web-v2/tests/firmware-links.test.js` checks the tool's
+> download list against what CI actually builds — keep it passing and a rename can't become a 404.
 
 There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`. There is no combined dual image for the RP2040-Zero (it doesn't expose SWD).
 
@@ -59,7 +61,9 @@ There is **no** `remapper_pico.uf2` — the RP2040 single file is `remapper.uf2`
 
 A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/src/remapper.h` / `remapper.cc` / `main.cc` before claiming one is free):
 
-`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color) **Next free: `0xFFFB`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
+`0xFFF1` LAYERS · `0xFFF2` MACRO · `0xFFF3` EXPR · `0xFFF4` GPIO · `0xFFF5` REGISTER · `0xFFF6` DIGIPOT · `0xFFF7` MIDI · `0xFFF8` ADC · `0xFFF9` DPAD · `0xFFFA` RGB_LED (low 16 bits = RGB565 color) · `0xFFFB` IR (low byte = protocol) **Next free: `0xFFFC`** (`0xFFFF` is `OUR_OUT_INTERFACE`).
+
+**`0xFFFB` sub-usages `0xFE` and `0xFF` are config carriers, not protocols** — pseudo-mappings whose `scaling` holds a setting (`0xFE` = hold-repeat ms, `0xFF` = output GPIO). They must never be a row, a picker entry, or a send target. **Both** web tools exclude them; teach a new carrier to both, or the tool that doesn't know it will show it as a stray row and overwrite the setting with an IR code. Full table in [`CODEMAP.md`](CODEMAP.md#usage-page-registry).
 
 ## Repo layout
 

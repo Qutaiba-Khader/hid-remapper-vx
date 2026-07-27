@@ -1,5 +1,40 @@
 # Changelog
 
+## IR (infrared) output — turn any button into a TV remote key (2026-07-27)
+
+Map any button on your input device to a **TV/AV remote key**. The Pico drives an IR LED directly,
+so a Bluetooth remote can control a TV that has no network control at all.
+
+Download **`remapper_ir.uf2`** (wired USB) or **`remapper_picow_ble_ir.uf2`** (Pico W + Bluetooth)
+from the config tool (**Actions → Infrared**). Wire the LED to **GP15** (changeable in Settings).
+
+- **NEC and Samsung** protocols, on a **PWM carrier + hardware alarm** — never PIO, so it never
+  contends with the PIO-USB host or the WS2812 RGB LED, on any board. Non-blocking: a ~68 ms frame
+  cannot stall core-0 USB.
+- **145 codes built in**: Samsung TV (58, including discrete **HDMI 1–4** and Power On/Off), Xbox
+  One / Series Media Remote (36) and LG TV (51). Any other NEC-family device works by typing a raw
+  32-bit code into the row.
+- **Hold to repeat**, like a real remote — retransmits every 110 ms while held, so volume ramps and
+  channels surf. Adjustable in Settings (0 = once per press). This is the one output that needs it:
+  every other mapping just holds its output bit at 1 and lets the host auto-repeat, but IR is
+  fire-and-forget pulses with no held state to report.
+- **Opt-in at compile time** (`-DIR_OUTPUT_ENABLED=ON`), so every existing `.uf2` is unchanged, and
+  `CONFIG_VERSION` stays **18** — the IR code rides the mapping's existing `scaling` field and the
+  two settings ride pseudo-mappings on `0xFFFB00FE` / `0xFFFB00FF`.
+
+Two things worth knowing. **Range is set by your LED circuit, not the firmware:** a bare module like
+the KY-005 has no driver transistor, so its LED runs at about 9.5 mA against a real remote's
+100–500 mA — expect well under a metre until you add a transistor. And **the IR pin must be excluded
+from the GPIO scanner**: `main.cc` treats every pin that isn't a declared GPIO *output* as an input
+"so that the monitor works", which sampled our 38 kHz carrier and reported it as a phantom `GPIO 15`
+input while putting a pull-up on the drive pin.
+
+Also fixed in the web tool: keyboard and consumer keys were all flagged **"always 1 — not a button"**
+and hidden from the picker. They are HID *array* inputs and the firmware never sends their key-up
+(`remapper.cc`, "for array range inputs, key-up events don't show up in the monitor"), so
+`min == max == 1` is the only reading they can ever have. New **`?debug=1`** mode dumps the raw
+device config, the save payload and the Monitor for bug reports.
+
 ## Bluetooth input on a Pico W (2026-07-14)
 
 A **Pico W** can now take its input over **Bluetooth LE** instead of a USB cable. Pair a BLE keyboard,

@@ -1,6 +1,6 @@
 ---
 name: hid-remapper-vx-flowmap
-description: The flow map of hid-remapper-vx: its stored, complete set of code paths with the checks for each, as deterministic tests plus a coverage gate. Use after ANY code change to hid-remapper-vx (update the map and tests with it), before a deploy or release, and when asked for a flow test or full trace of hid-remapper-vx. One clean pass, then stop.
+description: "The flow map of hid-remapper-vx: its stored, complete set of code paths with the checks for each, as deterministic tests plus a coverage gate. Use after ANY code change to hid-remapper-vx (update the map and tests with it), before a deploy or release, and when asked for a flow test or full trace of hid-remapper-vx. One clean pass, then stop."
 ---
 
 # hid-remapper-vx flow map

@@ -24,6 +24,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include <tusb.h>
 
 #include "config.h"
@@ -134,7 +136,7 @@ char const* string_desc_arr[] = {
    2N1M come from). The config tool decides a device is Bluetooth by looking for the word
    "Bluetooth" IN THIS STRING (config-tool-web/code.js: productName.includes("Bluetooth")), so the
    BLE build must say so -- that alone lights up the Pair / Clear-bonds controls in the tool. */
-#ifdef BLE_HOST_ENABLED
+#if defined(BLE_HOST_ENABLED) || defined(REMAPPER_BT)  /* ours (BLE) or upstream remapper_bt */
     "HID Remapper Bluetooth XXXX",  // 2: Product
 #else
     "HID Remapper XXXX",  // 2: Product
@@ -251,6 +253,9 @@ void tud_hid_set_protocol_cb(uint8_t instance, uint8_t protocol) {
 }
 
 void tud_mount_cb() {
+    // A USB bus reset clears TinyUSB's SOF callback enable, so it has to be set
+    // again each time we get configured.
+    tud_sof_cb_enable(true);
     reset_resolution_multiplier();
     if (boot_protocol_keyboard) {
         boot_protocol_keyboard = false;

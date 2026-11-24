@@ -1,5 +1,28 @@
 # Changelog
 
+## Merged the original hid-remapper's latest updates (2026-11-24)
+
+Everything from [jfedor2/hid-remapper](https://github.com/jfedor2/hid-remapper) up to `c5457f7`
+(62 commits, releases r2026-11-20 and r2026-11-23) is in. All of this fork's features are kept.
+
+- **Official Bluetooth firmware for Pico W and Pico 2 W** — `remapper_bt.uf2` and
+  `remapper_bt_pico2_w.uf2`: Bluetooth Classic **and** LE input, a pairing button on GP2 (short
+  press = pair, hold > 3 s = forget all), status LED GP3, activity LED GP4, GPIO mappings, Xbox
+  controllers normalized over Bluetooth, reboot if the radio stops answering.
+- **nRF52840 Bluetooth**: new **nice!nano** build (`remapper_nice_nano.uf2`), nRF Connect SDK v3.4.2,
+  Stadia controller, VID/PID passed on, LE legacy pairing, device name fixed in Chrome on Windows.
+- **More USB inputs**: a **second USB port on GP2 (D+) / GP3 (D−)** on the Pico-family single builds
+  (so GP2/GP3 are no longer free GPIOs there, and the IR output refuses them), two hubs on the host
+  side (hub behind a hub), optional third/fourth PIO-USB port, and many TinyUSB / Pico-PIO-USB fixes (missed handshakes, low-speed devices and unplugs on
+  RP2350, a hang on a bad report descriptor). RP2040 builds run at 192 MHz.
+- Fault and panic LED blinking, hardware stack protection, devices with more than four input reports.
+- **Both web tools** now offer the new downloads (Actions → Bluetooth); the v2 tool's tests also
+  check every v1 download link against what CI builds.
+- v2 tool: a config older than version 18 now loads with gamepad normalization **off**, as the
+  original tool does (it was turned on before).
+- This fork's own `remapper_picow_ble` (BLE-only) build is kept and still builds, ported to the new
+  pico-sdk 2.3 / BTstack 1.8; it is no longer developed — the official `remapper_bt` supersedes it.
+
 ## IR (infrared) output — turn any button into a TV remote key (2026-07-27)
 
 Map any button on your input device to a **TV/AV remote key**. The Pico drives an IR LED directly,

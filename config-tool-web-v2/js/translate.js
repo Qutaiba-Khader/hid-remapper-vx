@@ -276,7 +276,11 @@
       ignoreAuthDevInputs: !!config.ignore_auth_dev_inputs,
       gpioOutputMode: config.gpio_output_mode ? 1 : 0,
       inputLabels: toInt(config.input_labels),
-      normalizeGamepad: config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs,
+      // v1 (code.js, after loading any config): "Normalize gamepad inputs defaults to true, but if
+      // we're loading a <18 config, set it to false to preserve previous behavior." Same here, so an
+      // old exported JSON or one of the 55 pre-v18 examples behaves the same in both tools.
+      normalizeGamepad: (config.version != null && config.version < 18) ? false
+        : (config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs),
       irOutputPin: pinMap ? (toInt(pinMap.scaling) & 0xff) : DEFAULTS.irOutputPin,
       irRepeatMs: repeatMap ? (toInt(repeatMap.scaling) & 0xffff) : DEFAULTS.irRepeatMs,
     });

@@ -30,6 +30,11 @@ mouse or TV remote, and it runs through the **full mapping engine** (layers, mac
 quirks) and out to the PC as an ordinary USB HID device. The PC sees a **HID Remapper**, not your
 remote — which is the whole point.
 
+Upstream also ships its own official **Bluetooth** firmware (merged in 2026-11-24): `remapper_bt.uf2`
+for the **Pico W** and `remapper_bt_pico2_w.uf2` for the **Pico 2 W** (Bluetooth Classic **and** LE
+input, pairing button, status LEDs), plus `remapper_nice_nano.uf2` and the other nRF52840 boards.
+See [BLUETOOTH.md](BLUETOOTH.md). Both web tools offer these downloads.
+
 Download **`remapper_picow_ble.uf2`** from the config tool's **Actions → Bluetooth** section.
 
 - **Auto-connects to its paired device, always** — and once paired it will **never** bond with
@@ -63,6 +68,7 @@ The board's own USB-C connects to the host. A USB-A port for the device you want
 
 Notes:
 - The PIO USB host is fixed to the **GP0 (D+) / GP1 (D−)** pair — they must stay adjacent and cannot be moved.
+- Since the 2026-11-24 upstream merge the Pico / Pico 2 / RP2040-Zero / RP2350-Zero single builds also have a **second USB port on GP2 (D+) / GP3 (D−)** (wired the same way). GP2/GP3 are therefore no longer free GPIOs on these builds.
 - **5V = VSYS = VBUS**, tied to the board's USB-C VBUS, so it supplies bus power out to the attached device.
 - Flash the plain `remapper.uf2` for the **RP2040-Zero** (or `remapper_rp2040_zero_led.uf2` for onboard RGB LED control), or `remapper_pico2.uf2` (or `remapper_pico2_led.uf2` for onboard RGB LED) for the **RP2350-Zero**.
 
@@ -107,6 +113,8 @@ Downloads: [Board A (+ LED)](https://github.com/Qutaiba-Khader/hid-remapper-vx/r
 This project is built upon the excellent work of **[Jacek Fedorynski](https://github.com/jfedor2)** and the [HID Remapper](https://github.com/jfedor2/hid-remapper) project. The original HID Remapper provides a robust, well-engineered hardware remapping platform with support for multiple RP2040 and nRF52840 boards, comprehensive HID protocol handling, and a powerful expression engine. Without that solid foundation, this Android TV-focused customization would not be possible.
 
 For full documentation on hardware setup, firmware compilation, and the complete feature set, please visit the original project at [remapper.org](https://www.remapper.org/).
+
+You can pass build names (like `seeed_xiao_nrf52840`) to `build.sh` to only build some of the boards.
 
 ## License
 

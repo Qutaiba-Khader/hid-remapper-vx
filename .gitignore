@@ -2,3 +2,6 @@ config-tool/__pycache__
 firmware-bluetooth/build
 firmware/build
 artifacts/
+firmware-bluetooth/sdk
+firmware-bluetooth/artifacts
+.flow/

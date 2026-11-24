@@ -21,7 +21,7 @@ const offered = [...new Set([...TABS.matchAll(/"(remapper[a-z0-9_]*\.uf2)"/g)].m
 // What CI actually ships. Three sources, because CI names artifacts three different ways:
 //   1. explicit renames:      mv build-pico2/remapper.uf2 artifacts/remapper_pico2.uf2
 //   2. a wildcard sweep:      mv build/*.uf2 artifacts     -> whatever CMake targets produced
-//   3. the nRF52 matrix:      remapper_${{ matrix.board }}.uf2
+//   3. the nRF builds:        `build <name> ...` lines in firmware-bluetooth/build.sh
 function ciArtifacts() {
   const names = new Set();
 
@@ -35,14 +35,16 @@ function ciArtifacts() {
     // the combined dual image is produced by a custom command, not add_executable
     if (rp.includes("remapper_dual_combined")) names.add("remapper_dual_combined.uf2");
   }
-  // (3) the Bluetooth matrix
-  const bt = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-nrf52.yml"), "utf8");
-  const tmpl = bt.match(/remapper_\$\{\{\s*matrix\.board\s*\}\}\.uf2/);
-  if (tmpl) {
-    const boards = bt.match(/board:\s*\[([^\]]+)\]/);
-    if (boards) {
-      for (const b of boards[1].split(",")) names.add("remapper_" + b.trim().replace(/["']/g, "") + ".uf2");
-    }
+  // (3) the nRF Bluetooth builds. Upstream (2026-11) replaced the build-nrf52.yml matrix with
+  //     build-nrf.yml, which runs firmware-bluetooth/build.sh; each `build <name> <ncs> <board>` line
+  //     there ships remapper_<name>.uf2 -- or remapper_<name>.hex when Zephyr makes no UF2 for that
+  //     board (the nRF54 dev kits, flashed over their debugger), so those are not .uf2 downloads.
+  const nrfWf = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-nrf.yml"), "utf8");
+  assert.ok(nrfWf.includes("./build.sh"), "build-nrf.yml no longer runs firmware-bluetooth/build.sh");
+  const buildSh = fs.readFileSync(path.join(ROOT, "firmware-bluetooth", "build.sh"), "utf8");
+  for (const m of buildSh.matchAll(/^build\s+([a-z0-9_]+)\s+v[0-9.]+\s+(\S+)/gm)) {
+    if (/dk$/.test(m[1])) continue;  // dev kit: .hex, not .uf2
+    names.add("remapper_" + m[1] + ".uf2");
   }
   // (4) the Pico W builds — build-picow.yml is now part of the release pipeline (release.yml).
   const pw = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build-picow.yml"), "utf8");
@@ -85,4 +87,25 @@ test("the dual builds are labelled with the correct side (A = device/PC, B = hos
     "side A must be described as the one that plugs into the PC");
   assert.ok(bLine && /side B/i.test(bLine[1]),
     "side B must be described as the one your device plugs into");
+});
+
+// The ORIGINAL tool (config-tool-web/index.html, v1) has its own hard-coded download buttons. Same
+// rule: every .uf2 it links must be one CI ships, or the button is a 404.
+test("P-MRG-06 every firmware file the v1 tool links is one CI actually produces", () => {
+  const v1 = fs.readFileSync(path.join(ROOT, "config-tool-web", "index.html"), "utf8");
+  const linked = [...new Set([...v1.matchAll(/releases\/latest\/download\/(remapper[a-z0-9_]*\.uf2)/g)].map((m) => m[1]))];
+  assert.ok(linked.length >= 10, `v1 links only ${linked.length} builds`);
+  const built = ciArtifacts();
+  const phantom = linked.filter((f) => !built.has(f));
+  assert.deepStrictEqual(phantom, [], "v1 links to .uf2 files CI never builds: " + phantom.join(", "));
+});
+
+// The builds upstream added in the 2026-11 merge are offered by BOTH tools.
+test("P-MRG-07 both tools offer upstream's official Bluetooth builds", () => {
+  const v1 = fs.readFileSync(path.join(ROOT, "config-tool-web", "index.html"), "utf8");
+  for (const f of ["remapper_bt.uf2", "remapper_bt_pico2_w.uf2", "remapper_nice_nano.uf2"]) {
+    assert.ok(offered.includes(f), "v2 does not offer " + f);
+    assert.ok(v1.includes("releases/latest/download/" + f), "v1 does not offer " + f);
+    assert.ok(ciArtifacts().has(f), "CI does not build " + f);
+  }
 });

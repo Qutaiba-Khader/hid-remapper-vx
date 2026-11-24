@@ -36,12 +36,13 @@ CI (`.github/workflows/build-rp2040.yml`) builds each variant in its own dir and
 | Two **RP2040-Zero** (dual) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON` | `remapper_rp2040_zero_dual_a.uf2`, `_b.uf2` |
 | Two **RP2040-Zero** (dual, Side A + LED) | `PICO_BOARD=pico cmake .. -DZERO_DUAL_SERIAL=ON -DRGB_LED_ENABLED=ON -DRGB_LED_GRB=ON` (make `remapper_dual_a`) | `remapper_rp2040_zero_dual_a_led.uf2` |
 | Custom JLCPCB boards | `PICO_BOARD=remapper_v7`/`v8`/… | `remapper_board*.uf2` |
-| nRF52840 (Bluetooth) | `build-nrf52.yml` | see `BLUETOOTH.md` |
-| **Pico W — Bluetooth INPUT** | `PICO_BOARD=pico_w cmake ..`, `make remapper_picow_ble` (`build-picow.yml`) | `remapper_picow_ble.uf2` — see [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) |
+| nRF52840 / nice!nano (Bluetooth) | `build-nrf.yml` → `firmware-bluetooth/build.sh` (one `build <name> …` line per board; NCS v3.4.2) | `remapper_<name>.uf2` (`adafruit_feather_nrf52840`, `seeed_xiao_nrf52840`, `nice_nano`; the nRF54 DK gets a `.hex`) — see `BLUETOOTH.md` |
+| **Pico W / Pico 2 W — upstream's official Bluetooth** (Classic + LE) | `PICO_BOARD=pico_w`/`pico2_w cmake ..`, `make remapper_bt` (`build-rp2040.yml`) | `remapper_bt.uf2`, `remapper_bt_pico2_w.uf2` — pairing button GP2, status LED GP3, activity LED GP4 |
+| **Pico W — this fork's BLE-only INPUT** (no longer developed; upstream's `remapper_bt` supersedes it) | `PICO_BOARD=pico_w cmake ..`, `make remapper_picow_ble` (`build-picow.yml`) | `remapper_picow_ble.uf2` — see [`BLUETOOTH-PICOW.md`](BLUETOOTH-PICOW.md) |
 | **IR output** (wired USB) | `cmake .. -DIR_OUTPUT_ENABLED=ON` (`build-ir.yml`) | `remapper_ir.uf2` |
 | **IR output** (Pico W + Bluetooth) | `PICO_BOARD=pico_w cmake .. -DIR_OUTPUT_ENABLED=ON` | `remapper_picow_ble_ir.uf2` |
 
-> **All variants above are now built by `release.yml`** — `build-nrf52`, `build-rp2040`, `build-picow`
+> **All variants above are now built by `release.yml`** — `build-nrf`, `build-rp2040`, `build-picow`
 > and `build-ir` are all wired in, so pushing a tag produces every `.uf2` the web tools link. (Both
 > the Pico W Bluetooth and IR builds went through a hand-upload phase before this; nothing is
 > hand-uploaded any more.) `config-tool-web-v2/tests/firmware-links.test.js` checks the tool's
@@ -76,10 +77,17 @@ A usage is `uint32 = PAGE<<16 | ID`. Custom output pages (verify in `firmware/sr
 - **[`config-tool-web-v2/`](config-tool-web-v2)** — the REDESIGNED tool (v2): vanilla JS, no build step, per-field reset-to-default, live monitor. Live at `…/config-tool-web-v2/`.
   - `js/device.js` = WebHID + the 32-byte binary protocol (ported from v1's `code.js`).
   - `js/translate.js` = the APP⇄device-config boundary. **All unit conversions live here**: ms↔µs, `scale`↔`scaling` (×1000), and **expression constants↔fixed point (×1000)** — get that last one wrong and `0.05 mul` is written to the device as `0 mul`.
-  - Tests: `cd config-tool-web-v2 && node --test tests/*.test.js` (**100**, no deps). They include a full end-to-end flow against a fake device (`flow.test.js`), a firmware↔web contract check that reads the firmware source (`contract.test.js`), and guards against the mock's fake data creeping back.
+  - Tests: `cd config-tool-web-v2 && node --test tests/*.test.js` (**124**, no deps). They include a full end-to-end flow against a fake device (`flow.test.js`), a firmware↔web contract check that reads the firmware source (`contract.test.js`), and guards against the mock's fake data creeping back.
   - **Feature parity with v1 is COMPLETE** (macros, quirks, expressions, hub ports, device-reported usages, layer-forcing safety, monitor, JSON, firmware downloads). v2 additionally has per-field reset-to-default and per-row enable/disable.
-- **[`.github/workflows/`](.github/workflows)** — [`build-rp2040.yml`](.github/workflows/build-rp2040.yml), [`build-nrf52.yml`](.github/workflows/build-nrf52.yml), [`release.yml`](.github/workflows/release.yml).
+- **[`.github/workflows/`](.github/workflows)** — [`build-rp2040.yml`](.github/workflows/build-rp2040.yml), [`build-nrf.yml`](.github/workflows/build-nrf.yml), [`release.yml`](.github/workflows/release.yml).
 - **[`custom-boards/`](custom-boards)** — KiCad designs for JLCPCB boards.
+
+## Upstream merges
+
+- Upstream is `jfedor2/hid-remapper` (remote `upstream`). Last merged: **2026-11-24, upstream `c5457f7`** (62 commits: Pico W/Pico 2 W Bluetooth `remapper_bt`, second PIO-USB port / two hubs, nice!nano, NCS v3.4.2, pico-sdk **2.3.1** with BTstack **1.8**, TinyUSB/Pico-PIO-USB fixes, RP2040 at 192 MHz).
+- Upstream moved the GPIO code from `main.cc` to **`src/our_gpio.cc`** — our IR-pin exclusion now lives in `set_gpio_inout_masks()` there.
+- BTstack 1.8 renamed the BLE HID client `hids_client` → `hids_host` (same API). `src/ble/ble_host.c` maps the old names when `hids_host.h` exists, and `src/ble/btstack_config.h` defines both `MAX_NR_HIDS_CLIENTS` and `MAX_NR_HIDS_HOSTS`.
+- Merge procedure that worked: merge on a branch → build every variant locally exactly as CI does → unit tests → rp2040js simulation (`Shared1Tb/projects/hid-remapper-vx-sim-poc/e2e`) → push → tag.
 
 ## Build / release workflow
 

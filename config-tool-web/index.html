@@ -208,7 +208,7 @@
                     </div>
                     <div class="col-auto">
                         <div class="input-group">
-                            <input type="number" min="0" max="29" id="ir_output_pin_input" class="form-control text-end" style="max-width: 100px;" title="GPIO the IR LED is wired to (IR-capable firmware only). Saved with the config only when you have IR mappings.">
+                            <input type="number" min="0" max="29" id="ir_output_pin_input" class="form-control text-end" style="max-width: 100px;" title="GPIO the IR LED is wired to (IR-capable firmware only). Saved with the config only when you have IR mappings. Not GP0/GP1 or GP2/GP3 (the USB ports on Pico builds): the firmware refuses pins already in use.">
                             <span class="input-group-text">GPIO</span>
                         </div>
                     </div>
@@ -395,16 +395,61 @@
                                 </div>
 
                                 <div class="mb-2 mt-4" style="font-size:0.8rem;color:var(--text-muted);">
-                                    <strong>Bluetooth (Pico W)</strong> &mdash; the input device connects over <strong>Bluetooth LE</strong> instead of USB. Pair a BLE keyboard, mouse or TV remote and it runs through the full mapping engine, out to the PC as a normal USB HID device. Needs a <strong>Pico W</strong> (the wireless one).
-                                    <br>The remapper is <strong>not</strong> pairable on its own: it only reconnects to the device it already knows. Use <strong>Pair new device</strong> above to open a 60-second pairing window.
+                                    <strong>Bluetooth (Pico W / Pico 2 W / nRF52840)</strong> &mdash; the input device connects over <strong>Bluetooth</strong> instead of USB. The <strong>official</strong> builds (<code>remapper_bt</code>, from the original hid-remapper) take Bluetooth Classic <em>and</em> LE devices; a button on <strong>GP2</strong> starts pairing (hold &gt; 3 s to forget all devices), with a status LED on GP3 and an activity LED on GP4. This fork&rsquo;s own <code>remapper_picow_ble</code> (BLE only) is still offered below. Pair a BLE keyboard, mouse or TV remote and it runs through the full mapping engine, out to the PC as a normal USB HID device. Needs a <strong>Pico W</strong> (the wireless one).
+                                    <br>Once paired, the remapper only reconnects to the devices it already knows. Use <strong>Pair new device</strong> above to start pairing (60 seconds on the official builds, 3 minutes on <code>remapper_picow_ble</code>).
                                 </div>
                                 <div class="row g-3">
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_bt.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_bt">
+                                            <span style="font-size:1.6rem;">&#128246;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Pico W &mdash; Bluetooth Classic + LE input (official)</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">RP2040 + CYW43 &mdash; remapper_bt.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_bt_pico2_w.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_bt_pico2_w">
+                                            <span style="font-size:1.6rem;">&#128246;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Pico 2 W &mdash; Bluetooth Classic + LE input (official)</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">RP2350 + CYW43 &mdash; remapper_bt_pico2_w.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
                                     <div class="col-12">
                                         <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_picow_ble.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_picow_ble">
                                             <span style="font-size:1.6rem;">&#128246;</span>
                                             <span class="d-flex flex-column">
-                                                <strong>Pico W &mdash; Bluetooth input</strong>
+                                                <strong>Pico W &mdash; Bluetooth LE input (this fork&rsquo;s build)</strong>
                                                 <small class="text-muted" style="font-size:0.72rem;">RP2040 + BLE &mdash; remapper_picow_ble.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_adafruit_feather_nrf52840.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_nrf_feather">
+                                            <span style="font-size:1.6rem;">&#128246;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Adafruit Feather nRF52840 &mdash; Bluetooth input</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">nRF52840 &mdash; remapper_adafruit_feather_nrf52840.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_seeed_xiao_nrf52840.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_nrf_xiao">
+                                            <span style="font-size:1.6rem;">&#128246;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>Seeed XIAO nRF52840 &mdash; Bluetooth input</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">nRF52840 &mdash; remapper_seeed_xiao_nrf52840.uf2</small>
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="col-12">
+                                        <a href="https://github.com/Qutaiba-Khader/hid-remapper-vx/releases/latest/download/remapper_nice_nano.uf2" class="btn btn-primary w-100 py-3 d-flex flex-row align-items-center gap-3 text-start" id="fw_download_nrf_nice_nano">
+                                            <span style="font-size:1.6rem;">&#128246;</span>
+                                            <span class="d-flex flex-column">
+                                                <strong>nice!nano &mdash; Bluetooth input</strong>
+                                                <small class="text-muted" style="font-size:0.72rem;">nRF52840 &mdash; remapper_nice_nano.uf2</small>
                                             </span>
                                         </a>
                                     </div>

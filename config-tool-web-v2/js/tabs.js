@@ -97,7 +97,7 @@
               `milliseconds (default ${DEF.macroEntryDuration})`))}
 
         ${card("irOutputPin", "IR output pin",
-          "GPIO the IR LED is wired to (only used on IR-capable firmware; saved with the config only when you have IR mappings). Avoid pins already used by USB/UART/RGB LED/Bluetooth.",
+          "GPIO the IR LED is wired to (only used on IR-capable firmware; saved with the config only when you have IR mappings). Avoid pins already used by USB (GP0/GP1, and GP2/GP3 = the second USB port on Pico builds)/UART/RGB LED/Bluetooth; the firmware refuses those.",
           num("irOutputPin", s.irOutputPin == null ? DEF.irOutputPin : s.irOutputPin, 0, 29,
               `GPIO 0–29 (default ${DEF.irOutputPin})`))}
 
@@ -727,11 +727,18 @@
        The Pico W build is a different chip family (RP2040 + CYW43) but the same idea, so it belongs
        in this group, not with the wired Pico builds — someone looking for "Bluetooth" will look
        here. NOTE: the remapper is NOT pairable on its own; it only reconnects to the device it
-       already knows. "Pair new device" opens a 60-second window. */
-    { name: "Bluetooth", chip: "nRF52840 / Pico W", files: [
-      { file: "remapper_picow_ble.uf2", sub: "Pico W · Bluetooth LE input (RP2040 + CYW43)" },
+       already knows. "Pair new device" opens a pairing window (60 s on the official remapper_bt builds, 3 min on remapper_picow_ble). */
+    /* remapper_bt / remapper_bt_pico2_w / remapper_nice_nano = upstream's OFFICIAL Bluetooth builds
+       (jfedor2/hid-remapper, merged 2026-11-24): Bluetooth Classic AND LE input, a pairing button on
+       GP2 (short press = pair, hold > 3 s = forget all), status LED GP3, activity LED GP4, GPIO
+       mappings on the other pins. remapper_picow_ble is this fork's own earlier BLE-only build. */
+    { name: "Bluetooth", chip: "nRF52840 / Pico W / Pico 2 W", files: [
+      { file: "remapper_bt.uf2", sub: "Pico W · Bluetooth Classic + LE input (official)" },
+      { file: "remapper_bt_pico2_w.uf2", sub: "Pico 2 W · Bluetooth Classic + LE input (official)" },
+      { file: "remapper_picow_ble.uf2", sub: "Pico W · Bluetooth LE input (this fork's build)" },
       { file: "remapper_adafruit_feather_nrf52840.uf2", sub: "Adafruit Feather nRF52840" },
       { file: "remapper_seeed_xiao_nrf52840.uf2", sub: "Seeed XIAO nRF52840" },
+      { file: "remapper_nice_nano.uf2", sub: "nice!nano (nRF52840)" },
     ] },
     /* Infrared (IR) output = map any button to a TV/AV remote key (NEC & Samsung). Wire an IR LED to
        the IR output pin (Settings tab; default GP15) and add an IR mapping. These builds add the IR

@@ -1,0 +1,38 @@
+[
+ {
+  "id": "G-BT-named",
+  "file": "config-tool-web-v2/js/device.js",
+  "find": "bluetooth: !!(device.productName && device.productName.includes(\"Bluetooth\")),",
+  "replace": "bluetooth: !!(device.productName),"
+ },
+ {
+  "id": "G-BT-contains",
+  "file": "config-tool-web-v2/js/device.js",
+  "find": "bluetooth: !!(device.productName && device.productName.includes(\"Bluetooth\")),",
+  "replace": "bluetooth: false,"
+ },
+ {
+  "id": "G-FW-offered",
+  "file": "config-tool-web-v2/js/tabs.js",
+  "find": "      { file: \"remapper_bt.uf2\", sub: \"Pico W \u00b7 Bluetooth Classic + LE input (official)\" },\n",
+  "replace": ""
+ },
+ {
+  "id": "G-FW-built",
+  "file": "config-tool-web-v2/js/tabs.js",
+  "find": "      { file: \"remapper_nice_nano.uf2\", sub: \"nice!nano (nRF52840)\" },",
+  "replace": "      { file: \"remapper_nice_nano.uf2\", sub: \"nice!nano (nRF52840)\" },\n      { file: \"remapper_nrf54lm20dk.uf2\", sub: \"nRF54 DK\" },"
+ },
+ {
+  "id": "G-NORM-old",
+  "file": "config-tool-web-v2/js/translate.js",
+  "find": "normalizeGamepad: (config.version != null && config.version < 18) ? false",
+  "replace": "normalizeGamepad: false ? false"
+ },
+ {
+  "id": "G-NORM-field",
+  "file": "config-tool-web-v2/js/translate.js",
+  "find": ": (config.normalize_gamepad_inputs == null ? true : !!config.normalize_gamepad_inputs),",
+  "replace": ": true,"
+ }
+]

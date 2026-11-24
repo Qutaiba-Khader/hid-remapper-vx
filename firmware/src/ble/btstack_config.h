@@ -33,6 +33,9 @@
 // the device-selection problem. Found by diffing against shiomachisoft/picow_ble_usb_hid_bridge,
 // which works and defines it.
 #define MAX_NR_HIDS_CLIENTS 1
+// BTstack 1.8 (pico-sdk 2.3, from the 2026-11 upstream merge) renamed the HIDS client to "HIDS host";
+// its memory pool is sized by this name instead. Both are defined so either BTstack version works.
+#define MAX_NR_HIDS_HOSTS 1
 #define MAX_NR_HCI_CONNECTIONS 1
 #define MAX_NR_L2CAP_CHANNELS 4
 #define MAX_NR_L2CAP_SERVICES 3

@@ -55,6 +55,15 @@
 
 #include "btstack_config.h"
 #include "btstack.h"
+/* BTstack 1.8 (pico-sdk 2.3, pulled in by the 2026-11 upstream merge) renamed the HID-over-GATT
+   client "hids_client" -> "hids_host" with identical signatures and events. Map the old names onto
+   the new ones so this file builds on both BTstack versions unchanged. */
+#if __has_include("ble/gatt-service/hids_host.h")
+#define hids_client_init hids_host_init
+#define hids_client_connect hids_host_connect
+#define hids_client_descriptor_storage_get_descriptor_data hids_host_descriptor_storage_get_descriptor_data
+#define hids_client_descriptor_storage_get_descriptor_len hids_host_descriptor_storage_get_descriptor_len
+#endif
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"

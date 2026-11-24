@@ -1,5 +1,10 @@
 # Bluetooth input on a Pico W
 
+> **Superseded (2026-11-24):** the original hid-remapper now ships an official Pico W / Pico 2 W
+> Bluetooth firmware, `remapper_bt.uf2` / `remapper_bt_pico2_w.uf2` (Classic + LE, pairing button
+> on GP2) — see [BLUETOOTH.md](BLUETOOTH.md). This BLE-only build is kept and still built, but no
+> longer developed.
+
 A **Pico W** takes its input from a **BLE HID device** — a keyboard, a mouse, a TV remote — instead of
 a USB cable. The reports run through hid-remapper's **full mapping engine** and out to the PC as an
 ordinary **USB HID device**, configurable from the same WebHID tool as every other build.

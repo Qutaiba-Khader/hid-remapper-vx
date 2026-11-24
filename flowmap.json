@@ -1,0 +1,35 @@
+{
+  "name": "hid-remapper-vx",
+  "level": "quick",
+  "source": [
+    "config-tool-web-v2/js/*.js"
+  ],
+  "exclude": [
+    "**/*.test.js",
+    "tools/flow/**",
+    "config-tool-web-v2/js/usages.js",
+    "config-tool-web-v2/js/usages-v1.js",
+    "config-tool-web-v2/js/ir-codes.js",
+    "config-tool-web-v2/js/examples.js"
+  ],
+  "tests": [
+    "config-tool-web-v2/tests/*.test.js"
+  ],
+  "maps": "docs/flow-map",
+  "index": "docs/FLOW-MAP.md",
+  "lanes": [
+    {
+      "name": "node",
+      "adapter": "node-v8",
+      "command": "node --test config-tool-web-v2/tests/*.test.js",
+      "command_files": "node --test {files}",
+      "tests": [
+        "config-tool-web-v2/tests/*.test.js"
+      ],
+      "timeout_s": 600
+    }
+  ],
+  "codebase_memory": {
+    "project": "hid-remapper-vx"
+  }
+}

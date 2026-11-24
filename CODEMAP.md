@@ -41,8 +41,8 @@ The firmware is one codebase compiled into several executables. Board/role-speci
 | RGB LED driver | `src/main.cc` | `rgb565_to_wire()`, `rgb_led_init()`, `write_rgb_led()`, `RGB_LED_BRIGHTNESS` (64), `#ifdef RGB_LED_ENABLED` block |
 | RGB LED presets (web) | `config-tool-web/usages.js` | `0xfffa****` entries, `class:'rgb_led_usage'` |
 | WS2812 PIO program | `src/ws2812.pio` | `ws2812_program`, `ws2812_program_init` |
-| GPIO input (buttons) | `src/main.cc` | `read_gpio()` — active-low, `GPIO_USAGE_PAGE \| i`, debounced |
-| GPIO output | `src/main.cc` | `write_gpio()`, `set_gpio_inout_masks()`, `gpio_output_mode` (0=push-pull, 1=open-drain) |
+| GPIO input (buttons) | `src/our_gpio.cc` (moved from `main.cc` upstream, 2026-11) | `read_gpio()` — active-low, `GPIO_USAGE_PAGE \| i`, debounced |
+| GPIO output | `src/our_gpio.cc` | `write_gpio()`, `set_gpio_inout_masks()` (also drops the IR pin from both masks), `gpio_output_mode` (0=push-pull, 1=open-drain) |
 | GPIO output state | `src/globals.cc` | `gpio_out_state[4]`, `gpio_output_mode` |
 | Valid GPIO pins (per board) | each entry `.cc` | `get_gpio_valid_pins_mask()` (excludes UART/SWD/serial pins) |
 | Dual UART link | `src/serial.cc`, `src/serial.h` | `serial_init/read/write`, `#ifndef`-guarded `SERIAL_{TX,RX,CTS,RTS}_PIN` (defaults 20/21/26/27) |
@@ -127,7 +127,7 @@ grep -n "DualCommand" firmware/src/dual.h
 # Who runs the mapping engine (process_mapping call sites)
 grep -rn "process_mapping" firmware/src
 # GPIO output path
-grep -n "write_gpio\|gpio_out_state\|gpio_output_mode" firmware/src/main.cc firmware/src/globals.cc
+grep -n "write_gpio\|gpio_out_state\|gpio_output_mode" firmware/src/our_gpio.cc firmware/src/globals.cc
 # Dual serial pin defaults / overrides
 grep -n "SERIAL_.*_PIN" firmware/src/serial.h
 # Firmware feature flags

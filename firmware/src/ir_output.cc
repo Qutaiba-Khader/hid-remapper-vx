@@ -30,11 +30,31 @@ static inline void ir_space() { pwm_set_chan_level(ir_slice, ir_chan, 0); }
 // Pins the firmware already uses on one or more of the builds this feature targets. Refuse to
 // drive IR on any of them (conservative union, so the one guard is correct on every build):
 //   GP0/1   PIO-USB D+/D-            (wired single)
+//   GP2/3   second PIO-USB port      (pico/pico2/pico_w single, since the 2026-11 upstream merge;
+//           checked below from PICO_DEFAULT_PIO_USB_DP_PIN2..4, so it follows the build)
 //   GP8-11  dual inter-Pico UART     (RP2040-Zero, ZERO_DUAL_SERIAL)
 //   GP16/17 UART TX/RX; GP16 is also the WS2812 RGB LED data pin
 //   GP20/21/26/27  dual inter-Pico UART (default pins)
 //   GP23/24/25/29  CYW43 wireless    (Pico W)
 static bool ir_pin_reserved(uint8_t pin) {
+    // Upstream (2026-11 merge) added extra PIO-USB host ports to the Pico builds: port 2 on GP2/GP3 is
+    // ON by default for pico/pico2/pico_w, ports 3/4 (GP4/5, GP6/7) are opt-in. Whatever this build
+    // defines is a USB port, not an IR pin.
+#ifdef PICO_DEFAULT_PIO_USB_DP_PIN2
+    if ((pin == PICO_DEFAULT_PIO_USB_DP_PIN2) || (pin == PICO_DEFAULT_PIO_USB_DP_PIN2 + 1)) {
+        return true;
+    }
+#endif
+#ifdef PICO_DEFAULT_PIO_USB_DP_PIN3
+    if ((pin == PICO_DEFAULT_PIO_USB_DP_PIN3) || (pin == PICO_DEFAULT_PIO_USB_DP_PIN3 + 1)) {
+        return true;
+    }
+#endif
+#ifdef PICO_DEFAULT_PIO_USB_DP_PIN4
+    if ((pin == PICO_DEFAULT_PIO_USB_DP_PIN4) || (pin == PICO_DEFAULT_PIO_USB_DP_PIN4 + 1)) {
+        return true;
+    }
+#endif
     switch (pin) {
         case 0: case 1:
         case 8: case 9: case 10: case 11:

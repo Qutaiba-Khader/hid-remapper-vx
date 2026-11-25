@@ -114,8 +114,6 @@ This project is built upon the excellent work of **[Jacek Fedorynski](https://gi
 
 For full documentation on hardware setup, firmware compilation, and the complete feature set, please visit the original project at [remapper.org](https://www.remapper.org/).
 
-You can pass build names (like `seeed_xiao_nrf52840`) to `build.sh` to only build some of the boards.
-
 ## License
 
 The software in this repository is licensed under the [MIT License](LICENSE), unless stated otherwise.
